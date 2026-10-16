@@ -4,8 +4,9 @@
   command = "npm run db:migrate && npm run db:seed && npm run build"
   publish = ".next"
   # Save free-plan credits: skip preview/branch builds, and skip production
-  # builds when only documentation changed. (Exit 0 = skip, exit 1 = build.)
-  ignore = "if [ \"$CONTEXT\" != \"production\" ]; then exit 0; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)docs' ':(exclude)*.md'"
+  # builds when only documentation changed. Always build the first deploy and
+  # manual "Trigger deploy" runs. (Exit 0 = skip, exit 1 = build.)
+  ignore = "if [ \"$CONTEXT\" != \"production\" ]; then exit 0; fi; if [ -z \"$CACHED_COMMIT_REF\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)docs' ':(exclude)*.md'"
 
 [build.environment]
   NODE_VERSION = "22"
