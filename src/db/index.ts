@@ -17,8 +17,12 @@ function createDb(): DB {
     const client = postgres(url, { max: 3, idle_timeout: 20, prepare: false });
     return drizzlePg(client, { schema });
   }
-  if (process.env.NODE_ENV === "production" && !process.env.ALLOW_PGLITE) {
-    throw new Error("DATABASE_URL must point to PostgreSQL in production.");
+  const hosted = process.env.NETLIFY || process.env.VERCEL;
+  if ((process.env.NODE_ENV === "production" || hosted) && !process.env.ALLOW_PGLITE) {
+    throw new Error(
+      "DATABASE_URL is missing or not a postgres:// URL. Add your Neon connection string in the hosting " +
+        "environment variables (Netlify: Project configuration → Environment variables) and redeploy.",
+    );
   }
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PGlite } = require("@electric-sql/pglite");
