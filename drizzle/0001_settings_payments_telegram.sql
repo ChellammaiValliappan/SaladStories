@@ -1,0 +1,2 @@
+ALTER TABLE "store_settings" ADD COLUMN "payment_methods" text DEFAULT 'upi,card,netbanking,wallet' NOT NULL;--> statement-breakpoint
+ALTER TABLE "store_settings" ADD COLUMN "telegram_chat_id" text DEFAULT '' NOT NULL;

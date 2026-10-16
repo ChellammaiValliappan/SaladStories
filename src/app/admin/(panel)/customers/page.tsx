@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { desc, eq, max, sql, count, sum } from "drizzle-orm";
 import { db, orders, users } from "@/db";
 import { formatINR } from "@/lib/money";
@@ -8,6 +9,7 @@ import { Flash } from "@/components/admin/Flash";
 export const metadata = { title: "Customers" };
 
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
+  await requireAdmin();
   const sp = await searchParams;
   // Everyone who has paid for an order, guest or registered, grouped by email.
   const [buyers, accounts] = await Promise.all([

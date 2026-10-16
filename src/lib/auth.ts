@@ -18,10 +18,16 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
+export type Role = "CUSTOMER" | "STAFF" | "ADMIN";
+
 export interface Session {
   uid: string;
-  role: "CUSTOMER" | "ADMIN";
+  role: Role;
 }
+
+/** ADMIN: everything. STAFF: dashboard, orders and sold-out switches. */
+export const isTeam = (role?: string | null) => role === "ADMIN" || role === "STAFF";
+export const toRole = (r: unknown): Role => (r === "ADMIN" ? "ADMIN" : r === "STAFF" ? "STAFF" : "CUSTOMER");
 
 export async function createSession(session: Session) {
   const token = await new SignJWT({ ...session })
@@ -47,7 +53,7 @@ export async function getSession(): Promise<Session | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    return { uid: String(payload.uid), role: payload.role === "ADMIN" ? "ADMIN" : "CUSTOMER" };
+    return { uid: String(payload.uid), role: toRole(payload.role) };
   } catch {
     return null;
   }
@@ -61,9 +67,18 @@ export async function getCurrentUser() {
   return user;
 }
 
+/** Owner/admin only (settings, team, coupons, refunds, menu editing…). */
 export async function requireAdmin() {
   const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/admin/login");
+  if (!user || !isTeam(user.role)) redirect("/admin/login");
+  if (user.role !== "ADMIN") redirect("/admin?err=" + encodeURIComponent("Only an admin can open that page."));
+  return user;
+}
+
+/** Any team member (admin or staff). */
+export async function requireStaff() {
+  const user = await getCurrentUser();
+  if (!user || !isTeam(user.role)) redirect("/admin/login");
   return user;
 }
 

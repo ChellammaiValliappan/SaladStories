@@ -8,14 +8,14 @@ Built from the *Salad Stories Master BRD* (sections 1–10).
 |---|---|
 | **Stack** | Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Drizzle ORM · PostgreSQL |
 | **Payments** | Razorpay Checkout + server-side order, signature check and webhooks |
-| **Notifications** | Email (any SMTP) and WhatsApp Cloud API |
-| **Hosting** | Vercel (app) + Neon or Supabase (PostgreSQL) — both free to start |
+| **Notifications** | Email (any SMTP), free Telegram bot alerts, optional WhatsApp Cloud API |
+| **Hosting** | Netlify Free (app) + Neon Free (PostgreSQL) — ₹0/month to start |
 
 ## What's included
 
 **Customer site** — home page, menu with veg/non-veg filters, product pages with a live-priced customizer, cart (saved on the device, and on the account when signed in), PIN-code delivery check, 7-step checkout with delivery slots and coupons, Razorpay payment, order confirmation and tracking, optional accounts (profile, saved addresses, order history, reorder), About, Contact, FAQ, and delivery/refund/privacy/terms pages.
 
-**Admin dashboard** (`/admin`) — today's numbers and slot capacity, order queue with one-tap status updates (customer gets an email), refunds through Razorpay, menu editor with customization options and photo upload, coupons, delivery areas / slots / holidays, customers, payments, sales reports, reviews and store settings.
+**Admin dashboard** (`/admin`) — a self-updating launch checklist, today's numbers and slot capacity, order queue with one-tap status updates (customer gets an email), refunds through Razorpay, menu editor with customization options and photo upload, coupons, delivery areas / slots / holidays, customers, payments, sales reports, reviews, menu categories, payment-method switches, team members (admin or staff access) and store settings. Everything a business owner changes day to day is in the admin, so it never needs a code change or redeploy.
 
 **Built-in safeguards** — prices, discounts, fees and tax are always recalculated on the server; double-clicks can't create duplicate orders; limited coupons are reserved atomically; an order is marked Paid only after Razorpay's signature *and* payment status are verified (with the webhook as a backup); sold-out items and full slots can't be ordered; nutrition is hidden until the owner marks it verified; no fake reviews.
 
@@ -40,7 +40,7 @@ Without Razorpay keys, checkout shows a **payment simulator** so you can try the
 
 ## Going live
 
-Follow **[docs/SETUP.md](docs/SETUP.md)** — it walks through every account (GitHub, Neon, Vercel, Razorpay, email, WhatsApp, Cloudinary, domain) using `chellskct@gmail.com`, in order.
+Follow **[docs/SETUP.md](docs/SETUP.md)** — free-plan setup for Neon, Netlify, Razorpay, Gmail, Telegram and Cloudinary using `chellskct@gmail.com`, plus a table of where to change everything in the admin.
 
 How customers and the owner move through the site, including what happens when something goes wrong, is in **[docs/FLOWS.md](docs/FLOWS.md)**.
 
@@ -81,4 +81,4 @@ docs/                 setup guide and user flows
 | `npm test` | Run the pricing / coupon / customization tests |
 | `npm run build` | Production build (type-checks everything) |
 | `npm run db:generate` | Create a new migration after editing `src/db/schema.ts` |
-| `npm run db:migrate` | Apply migrations (runs automatically on Vercel) |
+| `npm run db:migrate` | Apply migrations (runs automatically on every Netlify deploy) |

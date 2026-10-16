@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { and, count, desc, eq, gte, isNotNull, lte, sql, sum } from "drizzle-orm";
 import { db, deliveryAreas, orderItems, orders } from "@/db";
 import { formatINR } from "@/lib/money";
@@ -7,6 +8,7 @@ import { Card, PageHead, Table } from "@/components/admin/ui";
 export const metadata = { title: "Reports" };
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
+  await requireAdmin();
   const sp = await searchParams;
   const today = istParts().dateStr;
   const from = sp.from && /^\d{4}-\d{2}-\d{2}$/.test(sp.from) ? sp.from : addDays(today, -29);

@@ -8,6 +8,8 @@ import { checkSlotBookable, PENDING_HOLD_MINUTES, PINCODE_RE } from "./delivery"
 import { razorpay, razorpayConfigured, simulatorEnabled } from "./razorpay";
 import { notifyNewOrder, notifyStatusChange } from "./notify";
 import { istParts } from "./time";
+import { getSettings } from "./settings";
+import { hiddenMethods } from "./payment-methods";
 
 export const checkoutSchema = z.object({
   idempotencyKey: z.string().min(8).max(80),
@@ -51,7 +53,7 @@ function newOrderNumber() {
   return `SS${dateStr.slice(2).replace(/-/g, "")}-${rand}`;
 }
 
-export function paymentPayload(order: OrderRow) {
+export function paymentPayload(order: OrderRow, hide: string[] = []) {
   return {
     orderId: order.id,
     orderNumber: order.orderNumber,
@@ -60,7 +62,7 @@ export function paymentPayload(order: OrderRow) {
     paid: order.paymentStatus === "PAID",
     razorpay:
       order.razorpayOrderId && razorpayConfigured()
-        ? { keyId: process.env.RAZORPAY_KEY_ID!, orderId: order.razorpayOrderId }
+        ? { keyId: process.env.RAZORPAY_KEY_ID!, orderId: order.razorpayOrderId, hide }
         : null,
     simulate: simulatorEnabled() && order.paymentStatus !== "PAID",
     prefill: { name: order.customerName, email: order.email, contact: order.phone },
@@ -83,9 +85,10 @@ async function findByIdempotencyKey(key: string) {
  * order, reserve any limited coupon, then create the Razorpay order.
  */
 export async function createOrder(input: CheckoutInput, userId: string | null): Promise<PaymentPayload> {
+  const hide = hiddenMethods((await getSettings()).paymentMethods);
   // Same submission retried (double click / slow network) → return the same order.
   const existing = await findByIdempotencyKey(input.idempotencyKey);
-  if (existing) return paymentPayload(existing);
+  if (existing) return paymentPayload(existing, hide);
 
   if (!razorpayConfigured() && !simulatorEnabled())
     throw new CheckoutError("Online payment isn't set up yet. Please contact us on WhatsApp to order.");
@@ -217,7 +220,7 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
       if (isSerializationFailure(err) && attempt < 3) continue;
       if (isUniqueViolation(err)) {
         const again = await findByIdempotencyKey(input.idempotencyKey);
-        if (again) return paymentPayload(again);
+        if (again) return paymentPayload(again, hide);
       }
       throw err;
     }
@@ -238,7 +241,7 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
   // Fully discounted (₹0) orders need no payment.
   if (order.total === 0) {
     await markOrderPaid(order.id, { paymentId: null, method: "free" });
-    return paymentPayload({ ...order, paymentStatus: "PAID" });
+    return paymentPayload({ ...order, paymentStatus: "PAID" }, hide);
   }
 
   if (razorpayConfigured()) {
@@ -255,7 +258,7 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
       throw new CheckoutError("We couldn't start the payment. Please try again in a moment.");
     }
   }
-  return paymentPayload(order);
+  return paymentPayload(order, hide);
 }
 
 /** Idempotent: safe to call from both the checkout callback and the webhook. */

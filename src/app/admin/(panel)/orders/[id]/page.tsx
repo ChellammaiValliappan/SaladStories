@@ -7,6 +7,7 @@ import { formatINR } from "@/lib/money";
 import { addressLine, STATUS_LABELS } from "@/lib/notify";
 import { whatsappLink } from "@/lib/settings";
 import { refundOrder, updateOrderStatus } from "../../../actions";
+import { getCurrentUser } from "@/lib/auth";
 import { Badge, Card, PageHead } from "@/components/admin/ui";
 import { Flash } from "@/components/admin/Flash";
 import { SubmitButton } from "@/components/admin/SubmitButton";
@@ -22,6 +23,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
   const sp = await searchParams;
   const order = await db.query.orders.findFirst({ where: eq(orders.id, id), with: { items: true } });
   if (!order) notFound();
+  const me = await getCurrentUser();
   const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, id)).orderBy(asc(orderEvents.createdAt));
   const next = order.paymentStatus === "PAID" ? NEXT[order.status] : undefined;
   const wa = whatsappLink(
@@ -109,7 +111,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
               {order.razorpayOrderId && <div className="flex justify-between gap-2"><dt>Razorpay order</dt><dd className="truncate">{order.razorpayOrderId}</dd></div>}
               {order.razorpayPaymentId && <div className="flex justify-between gap-2"><dt>Payment ID</dt><dd className="truncate">{order.razorpayPaymentId}</dd></div>}
             </dl>
-            {order.paymentStatus === "PAID" && (
+            {order.paymentStatus === "PAID" && me?.role === "ADMIN" && (
               <form action={refundOrder} className="mt-4 space-y-2 border-t border-line pt-4">
                 <input type="hidden" name="orderId" value={order.id} />
                 <label className="label" htmlFor="amount">Refund amount (₹)</label>

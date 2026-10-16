@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { desc } from "drizzle-orm";
 import { db, reviews } from "@/db";
 import { deleteReview, saveReview, toggleReview } from "../../actions";
@@ -8,6 +9,7 @@ import { SubmitButton } from "@/components/admin/SubmitButton";
 export const metadata = { title: "Reviews" };
 
 export default async function ReviewsPage({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
+  await requireAdmin();
   const sp = await searchParams;
   const rows = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
   return (

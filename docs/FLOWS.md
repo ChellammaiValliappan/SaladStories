@@ -78,12 +78,15 @@ flowchart TD
 
 ## Owner (admin) flows
 
-Sign in at **/admin**.
+Sign in at **/admin**. There are two kinds of team accounts (Admin → Team):
+
+- **Admin** — everything below.
+- **Staff** — dashboard, orders (move them along) and sold-out switches only. Good for kitchen and delivery helpers.
 
 ### Daily routine
 1. **Morning — Menu:** mark anything you can't make today as *Sold out* (one tap), or *Disable for now*.
 2. **Delivery:** check today's slots; add a holiday if closed (Delivery → Holidays and closed days).
-3. **During service — Orders → To prepare:** new paid orders arrive (also by email/WhatsApp; the page refreshes every 30 seconds).
+3. **During service — Orders → To prepare:** new paid orders arrive (also by email and Telegram/WhatsApp; the page refreshes every 30 seconds).
 4. Open an order → **Start preparing** → **Mark out for delivery** → **Mark delivered**. Each step emails the customer and updates their tracking page.
 5. Use **Call** / **WhatsApp** buttons on the order to reach the customer.
 6. **Problems:** *Cancel order* and/or **Refund** (full or partial) — refunds go through Razorpay automatically.
@@ -95,8 +98,10 @@ Sign in at **/admin**.
 - **Customers:** paying customers (guest and registered) with order count and spend; block abusive accounts.
 - **Payments:** every attempt with Razorpay IDs; link to the Razorpay dashboard.
 - **Reports:** orders, revenue, average order value, discounts, revenue by day, best sellers, sales by area, coupon usage — for any date range.
+- **Menu categories:** add, rename, reorder or delete (Admin → Menu, bottom of the page).
+- **Team:** add staff or admins with a temporary password, change access, reset passwords.
 - **Reviews:** add genuine reviews (with permission) and publish them on the home page.
-- **Settings:** pause ordering, same-day and advance-ordering rules, announcement bar, delivery fee, free-delivery threshold, minimum order, GST, coupon types on/off, contact details and social links, admin password.
+- **Settings:** payment methods shown in Razorpay (UPI, cards, net banking, wallets, EMI, pay later), Telegram chat ID for free order alerts, pause ordering, same-day and advance-ordering rules, announcement bar, delivery fee, free-delivery threshold, minimum order, GST, coupon types on/off, contact details and social links, admin password.
 
 ## Behind the scenes (for a developer)
 

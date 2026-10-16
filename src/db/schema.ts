@@ -197,6 +197,10 @@ export const storeSettings = pgTable("store_settings", {
   deliveryPaused: boolean("delivery_paused").notNull().default(false),
   pausedMessage: text("paused_message").notNull().default("We're not taking orders right now. Please check back soon."),
   disabledCouponTypes: text("disabled_coupon_types").notNull().default(""),
+  // Razorpay methods offered at checkout (they must also be enabled on the Razorpay account)
+  paymentMethods: text("payment_methods").notNull().default("upi,card,netbanking,wallet"),
+  // Free owner alerts via a Telegram bot (token lives in TELEGRAM_BOT_TOKEN)
+  telegramChatId: text("telegram_chat_id").notNull().default(""),
 });
 
 // ---------- Coupons ----------

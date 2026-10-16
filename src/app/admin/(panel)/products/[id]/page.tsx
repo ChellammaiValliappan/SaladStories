@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { categories, db, optionChoices, optionGroups, products } from "@/db";
@@ -10,6 +11,7 @@ import { SubmitButton } from "@/components/admin/SubmitButton";
 export const metadata = { title: "Edit menu item" };
 
 export default async function ProductEdit({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string; err?: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const sp = await searchParams;
   const cats = await db.select().from(categories).orderBy(asc(categories.sortOrder));

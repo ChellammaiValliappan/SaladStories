@@ -24,9 +24,10 @@ export function AuthForm({ mode, admin = false }: { mode: "login" | "register"; 
     const data = await res.json();
     setBusy(false);
     if (!res.ok) return setError(data.error);
-    if (admin && data.role !== "ADMIN") return setError("This account doesn't have admin access.");
+    const team = data.role === "ADMIN" || data.role === "STAFF";
+    if (admin && !team) return setError("This account doesn't have admin access.");
     const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
-    router.push(admin || data.role === "ADMIN" ? safeNext ?? "/admin" : safeNext ?? "/account");
+    router.push(admin || team ? safeNext ?? "/admin" : safeNext ?? "/account");
     router.refresh();
   }
 

@@ -53,11 +53,13 @@ export function CheckoutFlow({
   savedAddresses,
   paymentsReady,
   simulator,
+  methodsText,
 }: {
   user: { name: string; email: string; phone: string } | null;
   savedAddresses: Saved[];
   paymentsReady: boolean;
   simulator: boolean;
+  methodsText: string;
 }) {
   const router = useRouter();
   const { lines, couponCode, hydrated, clear, setLocation, pincode: savedPin } = useCart();
@@ -191,6 +193,7 @@ export function CheckoutFlow({
         description: `Order ${data.orderNumber}`,
         prefill: data.prefill,
         theme: { color: "#1f6b3a" },
+        config: { display: { hide: (data.razorpay.hide as string[]).map((method) => ({ method })), preferences: { show_default_blocks: true } } },
         handler: async (resp: Record<string, string>) => {
           const v = await fetch("/api/payments/verify", {
             method: "POST",
@@ -426,7 +429,7 @@ export function CheckoutFlow({
             <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-basil" />
             <div className="text-sm">
               <p className="font-semibold">Pay online with Razorpay</p>
-              <p className="text-ink-soft">UPI (including Google Pay), credit and debit cards, net banking and wallets — whichever are enabled appear in the next step.</p>
+              <p className="text-ink-soft">Choose {methodsText} in the next step.</p>
             </div>
           </div>
           {simulator && (

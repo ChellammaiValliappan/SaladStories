@@ -7,8 +7,13 @@ import { ACTIVE_ORDER_STATUSES } from "@/lib/delivery";
 import { razorpayConfigured } from "@/lib/razorpay";
 import { Badge, Card, PageHead } from "@/components/admin/ui";
 import { AutoRefresh } from "@/components/AutoRefresh";
+import { SetupChecklist } from "@/components/admin/SetupChecklist";
+import { Flash } from "@/components/admin/Flash";
+import { getCurrentUser } from "@/lib/auth";
 
-export default async function Dashboard() {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
+  const { err } = await searchParams;
+  const me = await getCurrentUser();
   const today = istParts().dateStr;
   const startOfToday = new Date(`${today}T00:00:00+05:30`);
   const weekAgo = new Date(`${addDays(today, -6)}T00:00:00+05:30`);
@@ -37,10 +42,9 @@ export default async function Dashboard() {
     <>
       <PageHead title="Dashboard" />
       <AutoRefresh seconds={30} forMinutes={600} />
-      {!razorpayConfigured() && (
-        <p className="mb-5 rounded-xl bg-mango/25 p-4 text-sm font-medium">
-          Razorpay keys aren't set yet, so customers can't pay on the live site. Add them in your hosting settings — see docs/SETUP.md.
-        </p>
+      <Flash err={err} />
+      {me?.role === "ADMIN" ? <SetupChecklist /> : !razorpayConfigured() && (
+        <p className="mb-5 rounded-xl bg-mango/25 p-4 text-sm font-medium">Online payments aren't switched on yet.</p>
       )}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {tiles.map((t) => {

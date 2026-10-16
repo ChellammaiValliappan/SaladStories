@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import { asc, desc, gte } from "drizzle-orm";
 import { blackoutDates, db, deliveryAreas, deliveryInterests, deliverySlots } from "@/db";
 import { istParts } from "@/lib/time";
@@ -57,6 +58,7 @@ function SlotForm({ s }: { s?: Slot }) {
 }
 
 export default async function DeliveryPage({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
+  await requireAdmin();
   const sp = await searchParams;
   const [areas, slots, blackouts, interest] = await Promise.all([
     db.select().from(deliveryAreas).orderBy(asc(deliveryAreas.sortOrder), asc(deliveryAreas.name)),

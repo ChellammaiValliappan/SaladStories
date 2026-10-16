@@ -9,6 +9,7 @@ import { mkdir, writeFile } from "fs/promises";
 import crypto from "crypto";
 import {
   blackoutDates,
+  categories,
   coupons,
   db,
   deliveryAreas,
@@ -23,7 +24,7 @@ import {
   storeSettings,
   users,
 } from "@/db";
-import { requireAdmin } from "@/lib/auth";
+import { hashPassword, requireAdmin, requireStaff } from "@/lib/auth";
 import { setOrderStatus, ORDER_STATUSES } from "@/lib/orders";
 import { razorpay, razorpayConfigured } from "@/lib/razorpay";
 
@@ -60,7 +61,7 @@ function done(pathname: string, msg = "saved"): never {
 // ---------- Orders ----------
 
 export async function updateOrderStatus(form: FormData) {
-  await requireAdmin();
+  await requireStaff();
   const id = str(form, "orderId");
   const status = str(form, "status");
   if (!ORDER_STATUSES.includes(status as (typeof ORDER_STATUSES)[number])) oops(`/admin/orders/${id}`, "Invalid status");
@@ -196,7 +197,7 @@ export async function saveProduct(form: FormData) {
 }
 
 export async function setProductAvailability(form: FormData) {
-  await requireAdmin();
+  await requireStaff();
   const id = str(form, "id");
   const field = str(form, "field");
   const value = str(form, "value");
@@ -233,7 +234,7 @@ export async function uploadImage(form: FormData): Promise<{ url?: string; error
     if (!res.ok) return { error: data.error?.message ?? "Upload failed." };
     return { url: data.secure_url as string };
   }
-  if (process.env.VERCEL) return { error: "Set up Cloudinary to upload images on Vercel (see docs/SETUP.md), or paste an image URL." };
+  if (process.env.VERCEL || process.env.NETLIFY) return { error: "Set up Cloudinary to upload photos on the live site (see docs/SETUP.md), or paste an image URL." };
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
   const name = `${crypto.randomBytes(8).toString("hex")}.${ext}`;
   const dir = path.join(process.cwd(), "public", "uploads");
@@ -422,7 +423,74 @@ export async function saveSettings(form: FormData) {
     deliveryPaused: bool(form, "deliveryPaused"),
     pausedMessage: str(form, "pausedMessage") || "We're not taking orders right now. Please check back soon.",
     disabledCouponTypes: ["PERCENT", "FLAT", "FREE_DELIVERY"].filter((t) => !bool(form, `coupon_${t}`)).join(","),
+    paymentMethods: list(form, "paymentMethods").join(","),
+    telegramChatId: str(form, "telegramChatId").replace(/[^0-9-]/g, ""),
   };
+  if (!data.paymentMethods) oops("/admin/settings", "Keep at least one payment method switched on.");
   await db.insert(storeSettings).values({ id: 1, ...data }).onConflictDoUpdate({ target: storeSettings.id, set: data });
   done("/admin/settings");
+}
+
+// ---------- Team (admins & staff) ----------
+
+export async function addTeamMember(form: FormData) {
+  await requireAdmin();
+  const name = str(form, "name");
+  const email = str(form, "email").toLowerCase();
+  const role = str(form, "role") === "ADMIN" ? "ADMIN" : "STAFF";
+  const password = str(form, "password");
+  if (name.length < 2 || !/^\S+@\S+\.\S+$/.test(email)) oops("/admin/team", "Enter a name and a valid email.");
+  if (password.length < 8) oops("/admin/team", "The temporary password needs at least 8 characters.");
+  const [existing] = await db.select().from(users).where(eq(users.email, email));
+  const passwordHash = await hashPassword(password);
+  if (existing) await db.update(users).set({ role, name, passwordHash, isBlocked: false }).where(eq(users.id, existing.id));
+  else await db.insert(users).values({ name, email, role, passwordHash });
+  done("/admin/team");
+}
+
+async function adminCount() {
+  const rows = await db.select({ id: users.id }).from(users).where(and(eq(users.role, "ADMIN"), eq(users.isBlocked, false)));
+  return rows.length;
+}
+
+export async function setTeamRole(form: FormData) {
+  const me = await requireAdmin();
+  const id = str(form, "id");
+  const role = ["ADMIN", "STAFF", "CUSTOMER"].includes(str(form, "role")) ? str(form, "role") : "CUSTOMER";
+  if (id === me.id) oops("/admin/team", "You can't change your own access. Ask another admin.");
+  const [target] = await db.select().from(users).where(eq(users.id, id));
+  if (target?.role === "ADMIN" && role !== "ADMIN" && (await adminCount()) <= 1) oops("/admin/team", "There must always be at least one admin.");
+  await db.update(users).set({ role }).where(eq(users.id, id));
+  done("/admin/team");
+}
+
+export async function resetTeamPassword(form: FormData) {
+  await requireAdmin();
+  const password = str(form, "password");
+  if (password.length < 8) oops("/admin/team", "The new password needs at least 8 characters.");
+  await db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, str(form, "id")));
+  done("/admin/team");
+}
+
+// ---------- Categories ----------
+
+export async function saveCategory(form: FormData) {
+  await requireAdmin();
+  const id = str(form, "id") || null;
+  const name = str(form, "name");
+  if (name.length < 2) oops("/admin/products", "Enter a category name.");
+  const slug = slugify(name);
+  const [clash] = await db.select({ id: categories.id }).from(categories).where(eq(categories.slug, slug));
+  if (clash && clash.id !== id) oops("/admin/products", `A category called "${name}" already exists.`);
+  const data = { name, slug, sortOrder: intOrNull(form, "sortOrder") ?? 0 };
+  if (id) await db.update(categories).set(data).where(eq(categories.id, id));
+  else await db.insert(categories).values(data);
+  done("/admin/products");
+}
+
+export async function deleteCategory(form: FormData) {
+  await requireAdmin();
+  // Items in this category stay on the menu, just without a category.
+  await db.delete(categories).where(eq(categories.id, str(form, "id")));
+  done("/admin/products", "deleted");
 }

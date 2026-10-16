@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { asc, count, desc, eq } from "drizzle-orm";
 import { categories, couponRedemptions, coupons, db, deliveryAreas, products } from "@/db";
@@ -18,6 +19,7 @@ function describe(c: typeof coupons.$inferSelect) {
 }
 
 export default async function CouponsPage({ searchParams }: { searchParams: Promise<{ edit?: string; msg?: string; err?: string }> }) {
+  await requireAdmin();
   const sp = await searchParams;
   const [rows, used, prods, cats, areas] = await Promise.all([
     db.select().from(coupons).orderBy(desc(coupons.isActive), asc(coupons.code)),

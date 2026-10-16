@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { Check, MessageCircle } from "lucide-react";
 import { db, orderEvents, orders } from "@/db";
-import { getSession } from "@/lib/auth";
+import { getCurrentUser, isTeam } from "@/lib/auth";
 import { formatINR } from "@/lib/money";
 import { STATUS_LABELS, addressLine } from "@/lib/notify";
 import { getSettings, whatsappLink } from "@/lib/settings";
@@ -22,8 +22,8 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const { t, new: isNew } = await searchParams;
   const order = await db.query.orders.findFirst({ where: eq(orders.orderNumber, orderNumber), with: { items: true } });
   if (!order) notFound();
-  const session = await getSession();
-  const allowed = (t && t === order.trackingToken) || (session && (session.role === "ADMIN" || session.uid === order.userId));
+  const viewer = t && t === order.trackingToken ? null : await getCurrentUser();
+  const allowed = (t && t === order.trackingToken) || (viewer && (isTeam(viewer.role) || viewer.id === order.userId));
   if (!allowed) notFound();
 
   const [events, settings] = await Promise.all([

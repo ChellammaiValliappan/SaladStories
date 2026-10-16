@@ -134,6 +134,23 @@ async function sendWhatsAppText(to: string, body: string) {
   }
 }
 
+// ---------------- Telegram (free) ----------------
+
+async function sendTelegram(chatId: string, text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !chatId) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    });
+    if (!res.ok) console.error("[telegram failed]", res.status, await res.text());
+  } catch (err) {
+    console.error("[telegram failed]", err);
+  }
+}
+
 // ---------------- Public API ----------------
 
 export async function notifyNewOrder(o: OrderForNotify) {
@@ -157,6 +174,7 @@ Total: ${formatINR(o.total)}${o.couponCode ? ` (coupon ${o.couponCode})` : ""}`;
       emailHtml("New paid order", `${o.customerName} (${o.phone}, ${o.email})`, o),
     ),
     sendWhatsAppText(ownerWa, summary),
+    sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, `${summary}\n\nOpen: ${siteUrl()}/admin/orders`),
     sendEmail(
       o.email,
       `Your Salad Stories order ${o.orderNumber} is confirmed`,

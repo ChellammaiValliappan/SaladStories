@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { desc, ne } from "drizzle-orm";
 import { db, orders } from "@/db";
@@ -8,6 +9,7 @@ import { Badge, Empty, PageHead, Table } from "@/components/admin/ui";
 export const metadata = { title: "Payments" };
 
 export default async function PaymentsPage() {
+  await requireAdmin();
   const rows = await db.select().from(orders).where(ne(orders.paymentStatus, "CREATED")).orderBy(desc(orders.updatedAt)).limit(200);
   return (
     <>

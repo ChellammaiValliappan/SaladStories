@@ -14,7 +14,7 @@ const globalForDb = globalThis as unknown as { __db?: DB };
 function createDb(): DB {
   const url = process.env.DATABASE_URL;
   if (url && url.startsWith("postgres")) {
-    const client = postgres(url, { max: process.env.NODE_ENV === "production" ? 5 : 3, prepare: false });
+    const client = postgres(url, { max: 3, idle_timeout: 20, prepare: false });
     return drizzlePg(client, { schema });
   }
   if (process.env.NODE_ENV === "production" && !process.env.ALLOW_PGLITE) {

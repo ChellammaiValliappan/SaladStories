@@ -9,7 +9,7 @@ export async function Header() {
       {settings.announcement && (
         <div className="bg-basil-deep px-4 py-2 text-center text-sm font-medium text-white">{settings.announcement}</div>
       )}
-      <HeaderBar user={user ? { name: user.name, isAdmin: user.role === "ADMIN" } : null} />
+      <HeaderBar user={user ? { name: user.name, isAdmin: user.role === "ADMIN" || user.role === "STAFF" } : null} />
     </>
   );
 }

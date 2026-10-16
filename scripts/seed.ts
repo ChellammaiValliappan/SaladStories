@@ -155,6 +155,17 @@ const products = [
 ];
 
 async function main() {
+  // Safe to run on every deploy: starter data is only added to an empty
+  // database, so anything the owner edits or deletes is never brought back.
+  const firstRun = (await db.select({ id: storeSettings.id }).from(storeSettings)).length === 0;
+  if (firstRun) await seedStarterData();
+  else console.log("Store already set up — starter data skipped.");
+  await ensureAdmin();
+  console.log("Seed complete.");
+  process.exit(0);
+}
+
+async function seedStarterData() {
   await db
     .insert(storeSettings)
     .values({ id: 1, email: process.env.OWNER_EMAIL || "", flatDeliveryFee: rs(40), freeDeliveryAbove: rs(599), minOrderValue: rs(149) })
@@ -247,7 +258,12 @@ async function main() {
       { code: "FREEDELIVERY", description: "Free delivery on your order", type: "FREE_DELIVERY", value: 0, perCustomerLimit: 1 },
     ])
     .onConflictDoNothing();
+}
 
+/** Creates the first admin from ADMIN_EMAIL / ADMIN_PASSWORD if there's no admin yet. */
+async function ensureAdmin() {
+  const admins = await db.select({ id: users.id }).from(users).where(eq(users.role, "ADMIN"));
+  if (admins.length) return;
   const email = (process.env.ADMIN_EMAIL || "").toLowerCase();
   const password = process.env.ADMIN_PASSWORD;
   if (email && password) {
@@ -259,8 +275,6 @@ async function main() {
   } else {
     console.warn("ADMIN_EMAIL / ADMIN_PASSWORD not set — no admin account created.");
   }
-  console.log("Seed complete.");
-  process.exit(0);
 }
 
 main().catch((e) => {
