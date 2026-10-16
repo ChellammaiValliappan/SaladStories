@@ -1,0 +1,68 @@
+import { getSettings } from "@/lib/settings";
+import { saveSettings } from "../../actions";
+import { Card, Check, Field, PageHead } from "@/components/admin/ui";
+import { Flash } from "@/components/admin/Flash";
+import { SubmitButton } from "@/components/admin/SubmitButton";
+import { PasswordForm } from "@/components/PasswordForm";
+
+export const metadata = { title: "Settings" };
+const r = (p: number | null) => (p == null ? "" : p / 100);
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
+  const sp = await searchParams;
+  const s = await getSettings();
+  const disabled = s.disabledCouponTypes.split(",");
+  return (
+    <>
+      <PageHead title="Settings" />
+      <Flash msg={sp.msg} err={sp.err} />
+      <form action={saveSettings} className="space-y-6">
+        <Card title="Ordering">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3">
+              <Check label="Pause all orders" name="deliveryPaused" defaultChecked={s.deliveryPaused} hint="Customers can browse but not check out." />
+              <Check label="Allow same-day orders" name="sameDayOrders" defaultChecked={s.sameDayOrders} />
+            </div>
+            <Field label="Message while paused" name="pausedMessage" defaultValue={s.pausedMessage} />
+            <Field label="Days ahead customers can order" name="advanceDays" type="number" defaultValue={s.advanceDays} />
+            <Field label="Announcement bar" name="announcement" defaultValue={s.announcement} hint="Shown at the top of every page. Leave blank to hide." />
+          </div>
+        </Card>
+        <Card title="Charges">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Standard delivery fee (₹)" name="flatDeliveryFee" type="number" step="0.01" defaultValue={r(s.flatDeliveryFee)} />
+            <Field label="Free delivery above (₹)" name="freeDeliveryAbove" type="number" step="0.01" defaultValue={r(s.freeDeliveryAbove)} hint="Blank = never free." />
+            <Field label="Minimum order (₹)" name="minOrderValue" type="number" step="0.01" defaultValue={r(s.minOrderValue)} />
+            <Field label="Tax name" name="taxLabel" defaultValue={s.taxLabel} />
+            <Field label="Tax rate (%)" name="taxPercent" type="number" step="0.01" defaultValue={s.taxPercent} hint="Confirm the right GST rate with your accountant." />
+            <div className="flex items-end pb-2"><Check label="Menu prices already include tax" name="taxInclusive" defaultChecked={s.taxInclusive} /></div>
+          </div>
+        </Card>
+        <Card title="Coupon types">
+          <p className="mb-3 text-sm text-ink-soft">Switch a whole type of offer on or off without editing each coupon.</p>
+          <div className="flex flex-wrap gap-6">
+            <Check label="Percentage discounts" name="coupon_PERCENT" defaultChecked={!disabled.includes("PERCENT")} />
+            <Check label="Fixed amount discounts" name="coupon_FLAT" defaultChecked={!disabled.includes("FLAT")} />
+            <Check label="Free delivery" name="coupon_FREE_DELIVERY" defaultChecked={!disabled.includes("FREE_DELIVERY")} />
+          </div>
+        </Card>
+        <Card title="Contact details (shown in the footer and Contact page)">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Business name" name="businessName" defaultValue={s.businessName} />
+            <Field label="Phone" name="phone" defaultValue={s.phone} placeholder="+91 98765 43210" />
+            <Field label="Email" name="email" type="email" defaultValue={s.email} />
+            <Field label="WhatsApp number" name="whatsapp" defaultValue={s.whatsapp} hint="With country code, e.g. 919876543210" />
+            <Field label="Kitchen address" name="address" defaultValue={s.address} className="md:col-span-2" />
+            <Field label="Instagram link" name="instagram" defaultValue={s.instagram} />
+            <Field label="Facebook link" name="facebook" defaultValue={s.facebook} />
+            <Field label="YouTube link" name="youtube" defaultValue={s.youtube} />
+          </div>
+        </Card>
+        <SubmitButton className="btn btn-primary min-w-40">Save settings</SubmitButton>
+      </form>
+      <Card title="Your admin password" className="mt-8">
+        <PasswordForm />
+      </Card>
+    </>
+  );
+}

@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests (pricing, coupons, customization)
+        run: npm test
+      - name: Type check and production build
+        run: npm run build
+        env:
+          AUTH_SECRET: ci-only-secret-not-used-in-production

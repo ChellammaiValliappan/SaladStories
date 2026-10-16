@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+.env
+.env.local
+*.db
+*.db-journal
+prisma/dev.db*
+public/uploads/*
+!public/uploads/.gitkeep
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+.vercel
+.pglite

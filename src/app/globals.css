@@ -1,0 +1,185 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/figtree";
+
+/*
+  Salad Stories design tokens
+  - Base: basil green on warm paper, with beige "market crate" bands.
+  - Each bowl owns a produce colour (tomato, carrot, leaf, beet, mango) that
+    tints its card, its page and its add-to-cart moment.
+*/
+@theme {
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-paper: #fffdf7;
+  --color-crate: #f1e7d2; /* warm beige */
+  --color-crate-deep: #e3d3b2;
+  --color-ink: #17261c;
+  --color-ink-soft: #4f5f53;
+  --color-line: #e6dcc6;
+
+  --color-basil: #1f6b3a;
+  --color-basil-deep: #12452a;
+  --color-basil-soft: #e1efd9;
+  --color-sprout: #a8d14f;
+
+  --color-tomato: #e4472b;
+  --color-carrot: #f08a24;
+  --color-beet: #c22e6b;
+  --color-mango: #f5b82e;
+  --color-leaf: #4c9a2a;
+
+  --radius-bowl: 2rem;
+  --shadow-lift: 0 1px 0 rgba(23, 38, 28, 0.04), 0 12px 28px -14px rgba(18, 69, 42, 0.35);
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.55;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-sprout);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Produce accents — set on any element, read with var(--accent) */
+.accent-tomato { --accent: #e4472b; --accent-soft: #fde3dc; --accent-ink: #8f2614; }
+.accent-carrot { --accent: #f08a24; --accent-soft: #fdead4; --accent-ink: #8a4608; }
+.accent-leaf   { --accent: #4c9a2a; --accent-soft: #e3f1d2; --accent-ink: #2b5c16; }
+.accent-beet   { --accent: #c22e6b; --accent-soft: #fbe0ea; --accent-ink: #7b1442; }
+.accent-mango  { --accent: #f5b82e; --accent-soft: #fdf0cc; --accent-ink: #7a5300; }
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0 1.4rem;
+    border-radius: 999px;
+    font-weight: 650;
+    transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    user-select: none;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-primary {
+    background: var(--color-basil);
+    color: #fff;
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-basil-deep);
+  }
+  .btn-sprout {
+    background: var(--color-sprout);
+    color: var(--color-basil-deep);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-basil-deep);
+    border: 1.5px solid var(--color-line);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: var(--color-basil);
+  }
+  .field {
+    width: 100%;
+    min-height: 3rem;
+    border: 1.5px solid var(--color-line);
+    background: #fff;
+    border-radius: 0.9rem;
+    padding: 0.7rem 0.95rem;
+    font-size: 1rem; /* 16px stops iOS zooming into inputs */
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-basil);
+    box-shadow: 0 0 0 4px var(--color-basil-soft);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--color-tomato);
+  }
+  .label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    color: var(--color-ink);
+  }
+  .panel {
+    background: #fff;
+    border: 1px solid var(--color-line);
+    border-radius: 1.25rem;
+  }
+  .prose-policy h2 {
+    font-size: 1.35rem;
+    margin: 2rem 0 0.6rem;
+  }
+  .prose-policy p,
+  .prose-policy li {
+    color: var(--color-ink-soft);
+    margin-bottom: 0.7rem;
+  }
+  .prose-policy ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+}
+
+/* The one orchestrated moment: ingredients settle into the hero bowl. */
+@keyframes bowl-settle {
+  from { transform: rotate(-14deg) scale(0.92); opacity: 0; }
+  to { transform: rotate(0) scale(1); opacity: 1; }
+}
+.hero-bowl {
+  animation: bowl-settle 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.pop {
+  animation: pop 0.35s ease;
+}
