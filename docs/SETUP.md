@@ -23,6 +23,7 @@ Everything below starts on a **free plan**. Use **chellskct@gmail.com** for ever
 - **Menu, prices, nutrition, photos, coupons, slots, staff and payment methods are all changed in `/admin`** — they live in the database, so they **don't need a redeploy** and don't use Netlify credits.
 - Netlify spends credits on deploys (≈15 each), bandwidth and server time. The included `netlify.toml` skips preview builds and skips deploys when only docs change. A small local shop should stay well inside 300 credits; Netlify emails you at 50%, 75% and 100%.
 - Photos are served by Cloudinary, not Netlify, which saves bandwidth credits.
+- Keep the database in the same region as Netlify's functions (US East 2 on the free plan). A far-away database adds a delay to every page.
 - Neon's database sleeps after 5 minutes idle and wakes in under a second on the next visit — fine for this site.
 - When the business grows: Netlify Pro or Vercel Pro (~$19–20/month) and Neon Launch — no code changes needed.
 
@@ -31,7 +32,7 @@ Everything below starts on a **free plan**. Use **chellskct@gmail.com** for ever
 ## Step 1 — Database (Neon) · 5 minutes
 
 1. Open https://neon.com → **Sign up** → **Continue with GitHub**.
-2. Create a project: name `salad-stories`, Postgres version default, region **AWS Asia Pacific (Singapore)**.
+2. Create a project: name `salad-stories`, Postgres version default, region **AWS US East 2 (Ohio)** — the same region where Netlify's free plan runs the site's server code. Keeping them together makes every page much faster (pages pass through Netlify's worldwide network, so customers in Chennai still get quick loads).
 3. On the project dashboard click **Connect** → turn on **Connection pooling** → copy the connection string. It looks like
    `postgresql://neondb_owner:…@ep-…-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`
    Keep it private — this is your `DATABASE_URL`.

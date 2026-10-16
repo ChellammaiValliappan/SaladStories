@@ -1,4 +1,6 @@
 # Netlify (free plan) — see docs/SETUP.md
+# Server code runs in AWS us-east-2 on the free plan, so the Neon database
+# lives in us-east-2 too (one short hop per query).
 [build]
   # Update the database, add starter data on the very first deploy only, then build.
   command = "npm run db:migrate && npm run db:seed && npm run build"
