@@ -30,6 +30,8 @@ export interface UpiPayment {
 
 /** Fields we always set ourselves, never copied from a pasted QR. */
 const OWN_FIELDS = new Set(["pa", "pn", "am", "cu", "tn", "tr", "mc", "url", "mam"]);
+/** A business QR's own merchant reference (e.g. Google Pay Business "BCR2DN…") is kept as-is. */
+const KEEP_FROM_QR = new Set(["tr"]);
 
 /**
  * The amount and an order note are always filled in.
@@ -40,12 +42,13 @@ const OWN_FIELDS = new Set(["pa", "pn", "am", "cu", "tn", "tr", "mc", "url", "ma
 function query(p: UpiPayment) {
   const merchant = !!p.merchantCode && /^\d{4}$/.test(p.merchantCode);
   const fields: Record<string, string> = { pa: p.upiId, pn: p.payeeName.slice(0, 99) };
-  for (const [k, v] of Object.entries(p.qrExtras ?? {})) if (!OWN_FIELDS.has(k)) fields[k] = v;
+  const extras = p.qrExtras ?? {};
+  for (const [k, v] of Object.entries(extras)) if (!OWN_FIELDS.has(k)) fields[k] = v;
   if (merchant) fields.mc = p.merchantCode!;
   fields.am = (p.amount / 100).toFixed(2);
   fields.cu = "INR";
   fields.tn = `Salad Stories ${p.orderNumber}`;
-  if (merchant) fields.tr = p.orderNumber;
+  if (merchant) fields.tr = extras.tr || p.orderNumber;
   const params = new URLSearchParams(fields);
   // UPI apps expect %20 rather than + for spaces.
   return params.toString().replace(/\+/g, "%20");
@@ -62,7 +65,8 @@ export function parseUpiLink(text: string) {
   const pa = p.get("pa")?.trim().toLowerCase() ?? "";
   if (!UPI_ID_RE.test(pa)) return null;
   const extras: Record<string, string> = {};
-  for (const [k, v] of p.entries()) if (!OWN_FIELDS.has(k) && /^[a-zA-Z]{1,12}$/.test(k) && v.length <= 200) extras[k] = v;
+  for (const [k, v] of p.entries())
+    if ((!OWN_FIELDS.has(k) || KEEP_FROM_QR.has(k)) && /^[a-zA-Z]{1,12}$/.test(k) && v.length <= 200) extras[k] = v;
   return {
     upiId: pa,
     payeeName: p.get("pn")?.trim() ?? "",
