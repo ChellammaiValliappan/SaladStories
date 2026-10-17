@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/admin/SubmitButton";
 import { PasswordForm } from "@/components/PasswordForm";
 import { PAYMENT_METHODS, parseMethods } from "@/lib/payment-methods";
 import { razorpayConfigured } from "@/lib/razorpay";
+import { QrUpload } from "@/components/admin/QrUpload";
 
 export const metadata = { title: "Settings" };
 const r = (p: number | null) => (p == null ? "" : p / 100);
@@ -84,10 +85,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           )}
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr_12rem]">
             <div>
-              <label className="label" htmlFor="upiQrText">Best: paste the text of your Google Pay QR</label>
+              <label className="label" htmlFor="upiQrText">Best: your Google Pay QR</label>
               <input id="upiQrText" name="upiQrText" className="field" placeholder="upi://pay?pa=…&pn=…" />
+              <QrUpload targetId="upiQrText" />
               <p className="mt-1 text-xs text-ink-soft">
-                In Google Pay tap your photo → <b>your QR code</b> → take a screenshot. Open the screenshot with <b>Google Lens</b> and copy the text it shows (starts with upi://pay). Works for personal and business QRs.
+                In Google Pay tap your photo → <b>your QR code</b> → take a screenshot, then upload it here (or paste the QR text). Works for personal and business QRs.
                 {Object.keys(s.upiQrExtras ?? {}).length > 0 && " ✓ QR details saved."}
               </p>
             </div>

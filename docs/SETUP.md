@@ -74,7 +74,7 @@ The site starts in **Google Pay mode**: customers pay straight to your UPI ID, w
 Google Pay checks that a payment request matches the receiver's real QR code — the exact account-holder name and Google Pay's hidden fields. Typed-in details (e.g. the name "Salad Stories" on a personal account) get refused with "bank limit exceeded". So the site builds every payment link from your own QR:
 
 1. In Google Pay on the owner's phone, tap your profile photo → **your QR code** → take a screenshot.
-2. Open the screenshot in **Google Lens** (Google Photos → Lens, or the Google app) and copy the text it finds — it starts with `upi://pay?pa=…`. (Or scan the QR shown on your phone with another phone's Google Lens.)
+2. In **Admin → Settings → How customers pay** tap **Upload a screenshot of your QR** — the site reads it for you (or paste the QR text if you have it).
 3. **Admin → Settings → How customers pay** → choose **Google Pay to my UPI ID** → paste the text into **"paste the text of your Google Pay QR"** → **Save settings**.
 4. Place a small test order from another phone and pay it with Google Pay. The amount fills in automatically.
 
