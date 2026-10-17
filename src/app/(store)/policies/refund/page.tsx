@@ -15,7 +15,7 @@ export default function RefundPolicy() {
       <h2>Problems with your order</h2>
       <p>If something is missing, wrong or not up to standard, contact us within 2 hours of delivery with your order number and a photo. We'll replace the item or refund it.</p>
       <h2>How refunds are paid</h2>
-      <p>Refunds go back to the original payment method through Razorpay. They usually reach you within 5–7 working days, depending on your bank.</p>
+      <p>Refunds go back to the account you paid from — for Google Pay / UPI payments we send the money back by UPI, usually within 2 working days; card or net-banking payments made through Razorpay usually take 5–7 working days, depending on your bank.</p>
       <h2>Coupons</h2>
       <p>If an order that used a coupon is cancelled and refunded, the coupon may be restored at our discretion.</p>
     </ContentPage>

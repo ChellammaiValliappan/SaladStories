@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
       <ul>
         <li>Your name, mobile number, email address and delivery address, so we can deliver your order and contact you about it.</li>
         <li>Your order history and saved addresses if you create an account.</li>
-        <li>Payment details are entered on Razorpay's secure checkout. We never see or store your card numbers, UPI PIN or bank passwords.</li>
+        <li>Payments are made in your own UPI app (such as Google Pay) or on Razorpay's secure checkout. We only keep the transaction reference — never your UPI PIN, card numbers or bank passwords.</li>
       </ul>
       <h2>How we use it</h2>
       <ul>
@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
         <li>To tell you when we start delivering to your area, if you asked us to.</li>
       </ul>
       <h2>Who we share it with</h2>
-      <p>We share only what's needed with the services that help us run Salad Stories: Razorpay (payments), our email and WhatsApp messaging providers, our hosting provider and our delivery staff. We don't sell your personal information.</p>
+      <p>We share only what's needed with the services that help us run Salad Stories: UPI / Razorpay (payments), our email and WhatsApp messaging providers, our hosting provider and our delivery staff. We don't sell your personal information.</p>
       <h2>Your choices</h2>
       <p>You can update your profile and addresses from your account, or ask us to delete your account and personal data by contacting us. We may keep order records where the law requires it, for example for tax purposes.</p>
       <h2>Cookies</h2>

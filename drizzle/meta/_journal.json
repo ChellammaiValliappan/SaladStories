@@ -15,6 +15,13 @@
       "when": 1792133676972,
       "tag": "0001_settings_payments_telegram",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792206437047,
+      "tag": "0002_upi_payments",
+      "breakpoints": true
     }
   ]
 }

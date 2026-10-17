@@ -5,7 +5,7 @@ import { formatINR } from "@/lib/money";
 import { addDays, istParts } from "@/lib/time";
 import { ACTIVE_ORDER_STATUSES } from "@/lib/delivery";
 import { razorpayConfigured } from "@/lib/razorpay";
-import { Badge, Card, PageHead } from "@/components/admin/ui";
+import { Badge, Card, PageHead, orderBadge } from "@/components/admin/ui";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { SetupChecklist } from "@/components/admin/SetupChecklist";
 import { Flash } from "@/components/admin/Flash";
@@ -18,10 +18,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const startOfToday = new Date(`${today}T00:00:00+05:30`);
   const weekAgo = new Date(`${addDays(today, -6)}T00:00:00+05:30`);
 
-  const [[todayStats], [weekStats], toPrepare, recent, slots, todayBySlot] = await Promise.all([
+  const [[todayStats], [weekStats], toPrepare, [toVerify], recent, slots, todayBySlot] = await Promise.all([
     db.select({ n: count(), revenue: sum(orders.total) }).from(orders).where(and(eq(orders.paymentStatus, "PAID"), gte(orders.createdAt, startOfToday))),
     db.select({ n: count(), revenue: sum(orders.total) }).from(orders).where(and(eq(orders.paymentStatus, "PAID"), gte(orders.createdAt, weekAgo))),
     db.select({ n: count() }).from(orders).where(inArray(orders.status, ["PAID", "PREPARING"])),
+    db.select({ n: count() }).from(orders).where(and(eq(orders.paymentStatus, "VERIFYING"), eq(orders.status, "PENDING_PAYMENT"))),
     db.select().from(orders).orderBy(desc(orders.createdAt)).limit(8),
     db.select().from(deliverySlots).where(eq(deliverySlots.isActive, true)),
     db
@@ -43,6 +44,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       <PageHead title="Dashboard" />
       <AutoRefresh seconds={30} forMinutes={600} />
       <Flash err={err} />
+      {Number(toVerify.n) > 0 && (
+        <Link href="/admin/orders?status=verify" className="mb-5 flex items-center justify-between gap-3 rounded-2xl border-2 border-carrot bg-white p-4 font-semibold">
+          <span>{toVerify.n} Google Pay payment{Number(toVerify.n) === 1 ? "" : "s"} to check</span>
+          <span className="text-basil">Check now</span>
+        </Link>
+      )}
       {me?.role === "ADMIN" ? <SetupChecklist /> : !razorpayConfigured() && (
         <p className="mb-5 rounded-xl bg-mango/25 p-4 text-sm font-medium">Online payments aren't switched on yet.</p>
       )}
@@ -77,7 +84,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="font-bold">{formatINR(o.total)}</p>
-                      <Badge value={o.paymentStatus === "PAID" ? o.status : o.paymentStatus === "FAILED" ? "FAILED" : "PENDING_PAYMENT"} />
+                      <Badge value={orderBadge(o)} />
                     </div>
                   </Link>
                 </li>

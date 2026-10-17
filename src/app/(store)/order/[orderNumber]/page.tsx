@@ -10,6 +10,9 @@ import { STATUS_LABELS, addressLine } from "@/lib/notify";
 import { getSettings, whatsappLink } from "@/lib/settings";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { ReorderButton } from "@/components/ReorderButton";
+import { UpiPay } from "@/components/UpiPay";
+import { gpayAndroidUri, gpayIosUri, upiUri, UPI_ID_RE } from "@/lib/upi";
+import QRCode from "qrcode";
 
 export const metadata: Metadata = { title: "Your order", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -35,9 +38,36 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const wa = whatsappLink(settings.whatsapp, `Hi! I have a question about my order ${order.orderNumber}.`);
   const reached = (s: string) => events.find((e) => e.status === s);
 
+  // Google Pay / UPI: show the pay panel until the customer reports the payment.
+  const awaitingUpi =
+    order.status === "PENDING_PAYMENT" &&
+    ["CREATED", "FAILED"].includes(order.paymentStatus) &&
+    settings.paymentMode === "UPI" &&
+    UPI_ID_RE.test(settings.upiId);
+  const verifying = order.paymentStatus === "VERIFYING" && order.status !== "CANCELLED";
+  let upi: React.ComponentProps<typeof UpiPay> | null = null;
+  if (awaitingUpi) {
+    const pay = { upiId: settings.upiId, payeeName: settings.upiName || settings.businessName, amount: order.total, orderNumber: order.orderNumber };
+    upi = {
+      orderId: order.id,
+      trackingToken: order.trackingToken,
+      orderNumber: order.orderNumber,
+      amount: order.total,
+      upiId: pay.upiId,
+      payeeName: pay.payeeName,
+      gpayAndroid: gpayAndroidUri(pay),
+      gpayIos: gpayIosUri(pay),
+      qrDataUrl: await QRCode.toDataURL(upiUri(pay), { margin: 1, width: 400, color: { dark: "#12452a", light: "#ffffff" } }),
+      retry: order.paymentStatus === "FAILED",
+    };
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 pt-8">
-      {!paid && order.status !== "CANCELLED" && <AutoRefresh seconds={5} />}
+      {!paid && order.status !== "CANCELLED" && !upi && <AutoRefresh seconds={verifying ? 20 : 5} forMinutes={verifying ? 30 : 3} />}
+      {upi ? (
+        <UpiPay {...upi} />
+      ) : (
       <div className={`rounded-[2rem] p-6 sm:p-8 ${paid ? "bg-basil text-white" : "bg-crate"}`}>
         {paid ? (
           <>
@@ -48,6 +78,14 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           </>
         ) : order.status === "CANCELLED" ? (
           <h1 className="text-4xl font-[800]">This order was cancelled</h1>
+        ) : verifying ? (
+          <>
+            <h1 className="text-4xl font-[800] text-basil-deep">Thanks! We're checking your payment</h1>
+            <p className="mt-2 text-ink-soft">
+              We've received your Google Pay transaction ID ({order.upiRef}). We'll confirm your order as soon as we see the payment —
+              you'll get an email at {order.email}, and this page updates on its own.
+            </p>
+          </>
         ) : (
           <>
             <h1 className="text-4xl font-[800] text-basil-deep">{order.paymentStatus === "FAILED" ? "Payment didn't go through" : "Confirming your payment…"}</h1>
@@ -60,6 +98,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           </>
         )}
       </div>
+      )}
 
       {paid && order.status !== "CANCELLED" && (
         <ol className="mt-8 space-y-0" aria-label="Order progress">
@@ -103,7 +142,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           <Row k="Delivery" v={order.deliveryFee ? formatINR(order.deliveryFee) : "Free"} />
           {order.tax > 0 && <Row k="Tax" v={formatINR(order.tax)} />}
           <div className="flex justify-between pt-1 text-base font-bold"><dt>Total</dt><dd>{formatINR(order.total)}</dd></div>
-          <Row k="Payment" v={paid ? `Paid${order.paymentMethod ? ` (${order.paymentMethod})` : ""}` : order.paymentStatus === "FAILED" ? "Failed" : "Pending"} />
+          <Row k="Payment" v={paid ? `Paid${order.paymentMethod ? ` (${order.paymentMethod})` : ""}` : verifying ? "Being checked" : order.paymentStatus === "FAILED" ? "Not received" : "Pending"} />
         </dl>
         <div className="mt-4 rounded-2xl bg-crate p-4 text-sm">
           <p className="font-semibold">Delivering to {order.customerName}</p>

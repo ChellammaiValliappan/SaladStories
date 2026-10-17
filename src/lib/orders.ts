@@ -6,10 +6,11 @@ import { addresses, couponRedemptions, coupons, db, orderEvents, orderItems, ord
 import { customerKeyOf, liveRedemptions, quoteCart, cartItemSchema } from "./pricing";
 import { checkSlotBookable, PENDING_HOLD_MINUTES, PINCODE_RE } from "./delivery";
 import { razorpay, razorpayConfigured, simulatorEnabled } from "./razorpay";
-import { notifyNewOrder, notifyStatusChange } from "./notify";
+import { notifyNewOrder, notifyPaymentRejected, notifyPaymentToVerify, notifyStatusChange } from "./notify";
 import { istParts } from "./time";
 import { getSettings } from "./settings";
 import { hiddenMethods } from "./payment-methods";
+import { UPI_ID_RE, UTR_RE } from "./upi";
 
 export const checkoutSchema = z.object({
   idempotencyKey: z.string().min(8).max(80),
@@ -53,7 +54,11 @@ function newOrderNumber() {
   return `SS${dateStr.slice(2).replace(/-/g, "")}-${rand}`;
 }
 
-export function paymentPayload(order: OrderRow, hide: string[] = []) {
+type PayOpts = { hide?: string[]; upi?: boolean };
+
+export function paymentPayload(order: OrderRow, opts: PayOpts = {}) {
+  const hide = opts.hide ?? [];
+  const unpaid = order.paymentStatus !== "PAID";
   return {
     orderId: order.id,
     orderNumber: order.orderNumber,
@@ -64,7 +69,9 @@ export function paymentPayload(order: OrderRow, hide: string[] = []) {
       order.razorpayOrderId && razorpayConfigured()
         ? { keyId: process.env.RAZORPAY_KEY_ID!, orderId: order.razorpayOrderId, hide }
         : null,
-    simulate: simulatorEnabled() && order.paymentStatus !== "PAID",
+    // Google Pay / UPI: the customer finishes paying on the order page.
+    upi: !!opts.upi && unpaid,
+    simulate: !opts.upi && simulatorEnabled() && unpaid,
     prefill: { name: order.customerName, email: order.email, contact: order.phone },
   };
 }
@@ -85,12 +92,14 @@ async function findByIdempotencyKey(key: string) {
  * order, reserve any limited coupon, then create the Razorpay order.
  */
 export async function createOrder(input: CheckoutInput, userId: string | null): Promise<PaymentPayload> {
-  const hide = hiddenMethods((await getSettings()).paymentMethods);
+  const settings = await getSettings();
+  const useUpi = settings.paymentMode === "UPI";
+  const pay: PayOpts = { hide: hiddenMethods(settings.paymentMethods), upi: useUpi };
   // Same submission retried (double click / slow network) → return the same order.
   const existing = await findByIdempotencyKey(input.idempotencyKey);
-  if (existing) return paymentPayload(existing, hide);
+  if (existing) return paymentPayload(existing, pay);
 
-  if (!razorpayConfigured() && !simulatorEnabled())
+  if (useUpi ? !UPI_ID_RE.test(settings.upiId) : !razorpayConfigured() && !simulatorEnabled())
     throw new CheckoutError("Online payment isn't set up yet. Please contact us on WhatsApp to order.");
 
   const customerKey = customerKeyOf(input.contact.email, input.contact.phone)!;
@@ -110,7 +119,7 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
             eq(couponRedemptions.couponId, c.id),
             eq(couponRedemptions.customerKey, customerKey),
             eq(couponRedemptions.status, "RESERVED"),
-            ne(orders.paymentStatus, "PAID"),
+            inArray(orders.paymentStatus, ["CREATED", "FAILED"]),
           ),
         );
       if (stale.length)
@@ -220,7 +229,7 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
       if (isSerializationFailure(err) && attempt < 3) continue;
       if (isUniqueViolation(err)) {
         const again = await findByIdempotencyKey(input.idempotencyKey);
-        if (again) return paymentPayload(again, hide);
+        if (again) return paymentPayload(again, pay);
       }
       throw err;
     }
@@ -241,10 +250,10 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
   // Fully discounted (₹0) orders need no payment.
   if (order.total === 0) {
     await markOrderPaid(order.id, { paymentId: null, method: "free" });
-    return paymentPayload({ ...order, paymentStatus: "PAID" }, hide);
+    return paymentPayload({ ...order, paymentStatus: "PAID" }, pay);
   }
 
-  if (razorpayConfigured()) {
+  if (!useUpi && razorpayConfigured()) {
     try {
       const rzp = await razorpay().orders.create({
         amount: order.total,
@@ -258,7 +267,7 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
       throw new CheckoutError("We couldn't start the payment. Please try again in a moment.");
     }
   }
-  return paymentPayload(order, hide);
+  return paymentPayload(order, pay);
 }
 
 /** Idempotent: safe to call from both the checkout callback and the webhook. */
@@ -321,4 +330,59 @@ export async function setOrderStatus(orderId: string, status: string, note?: str
   const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { items: true } });
   if (order && ["PREPARING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"].includes(status)) await notifyStatusChange(order);
   return order;
+}
+
+
+// ---------------- Google Pay / UPI (confirmed by the owner) ----------------
+
+/** How long a reported-but-unconfirmed UPI payment keeps its coupon reserved. */
+const VERIFY_HOLD_HOURS = 48;
+
+export async function submitUpiPayment(orderId: string, trackingToken: string, utr: string) {
+  const ref = utr.replace(/\s/g, "");
+  if (!UTR_RE.test(ref)) throw new CheckoutError("Enter the 12-digit UPI transaction ID shown in Google Pay.");
+  const [order] = await db.select().from(orders).where(and(eq(orders.id, orderId), eq(orders.trackingToken, trackingToken)));
+  if (!order) throw new CheckoutError("Order not found.");
+  if (order.paymentStatus === "PAID") return order;
+  if (order.status === "CANCELLED") throw new CheckoutError("This order was cancelled. Please place a new order.");
+
+  // The same transaction ID can't pay for two orders.
+  const [dupe] = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.upiRef, ref), ne(orders.id, orderId)));
+  if (dupe) throw new CheckoutError("That transaction ID is already linked to another order. Please check it and try again.");
+
+  const [updated] = await db
+    .update(orders)
+    .set({ paymentStatus: "VERIFYING", upiRef: ref, paymentMethod: "UPI (Google Pay)", updatedAt: new Date() })
+    .where(and(eq(orders.id, orderId), ne(orders.paymentStatus, "PAID")))
+    .returning();
+  await db
+    .update(couponRedemptions)
+    .set({ status: "RESERVED", expiresAt: new Date(Date.now() + VERIFY_HOLD_HOURS * 3600_000) })
+    .where(and(eq(couponRedemptions.orderId, orderId), ne(couponRedemptions.status, "REDEEMED")));
+  await db.insert(orderEvents).values({ orderId, status: "PAYMENT_SUBMITTED", note: `Customer reported UPI payment, transaction ID ${ref}` });
+
+  const full = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { items: true } });
+  if (full) await notifyPaymentToVerify(full);
+  return updated ?? order;
+}
+
+/** Owner saw the money arrive → order becomes Paid and the customer is emailed. */
+export async function confirmUpiPayment(orderId: string) {
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+  if (!order) throw new CheckoutError("Order not found.");
+  return markOrderPaid(orderId, { paymentId: order.upiRef ? `UPI ${order.upiRef}` : null, method: "UPI (Google Pay)" });
+}
+
+/** Owner couldn't find the money → customer is told and can pay again. */
+export async function rejectUpiPayment(orderId: string, reason?: string) {
+  const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+  if (!order || order.paymentStatus === "PAID") return;
+  await db.update(orders).set({ paymentStatus: "FAILED", upiRef: null, updatedAt: new Date() }).where(eq(orders.id, orderId));
+  await db
+    .update(couponRedemptions)
+    .set({ status: "RELEASED" })
+    .where(and(eq(couponRedemptions.orderId, orderId), eq(couponRedemptions.status, "RESERVED")));
+  await db.insert(orderEvents).values({ orderId, status: "PAYMENT_FAILED", note: reason || "Payment not received" });
+  const full = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { items: true } });
+  if (full) await notifyPaymentRejected(full, reason);
 }

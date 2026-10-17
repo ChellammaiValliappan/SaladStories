@@ -201,6 +201,11 @@ export const storeSettings = pgTable("store_settings", {
   paymentMethods: text("payment_methods").notNull().default("upi,card,netbanking,wallet"),
   // Free owner alerts via a Telegram bot (token lives in TELEGRAM_BOT_TOKEN)
   telegramChatId: text("telegram_chat_id").notNull().default(""),
+  // How customers pay: "UPI" = Google Pay / UPI to your UPI ID, confirmed by you in the admin
+  // (no fees, no gateway); "RAZORPAY" = Razorpay Checkout, confirmed automatically.
+  paymentMode: text("payment_mode").notNull().default("UPI"),
+  upiId: text("upi_id").notNull().default(""),
+  upiName: text("upi_name").notNull().default("Salad Stories"),
 });
 
 // ---------- Coupons ----------
@@ -254,7 +259,9 @@ export const orders = pgTable(
     couponCode: text("coupon_code"),
     // PENDING_PAYMENT | PAID | PREPARING | OUT_FOR_DELIVERY | DELIVERED | CANCELLED
     status: text("status").notNull().default("PENDING_PAYMENT"),
-    paymentStatus: text("payment_status").notNull().default("CREATED"), // CREATED | PAID | FAILED | REFUNDED
+    // CREATED | VERIFYING (customer says they paid by UPI) | PAID | FAILED | REFUNDED
+    paymentStatus: text("payment_status").notNull().default("CREATED"),
+    upiRef: text("upi_ref"), // UPI transaction ID (UTR) the customer entered
     paymentMethod: text("payment_method"),
     razorpayOrderId: text("razorpay_order_id").unique(),
     razorpayPaymentId: text("razorpay_payment_id"),

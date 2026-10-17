@@ -25,8 +25,9 @@ import {
   users,
 } from "@/db";
 import { hashPassword, requireAdmin, requireStaff } from "@/lib/auth";
-import { setOrderStatus, ORDER_STATUSES } from "@/lib/orders";
+import { confirmUpiPayment, rejectUpiPayment, setOrderStatus, ORDER_STATUSES } from "@/lib/orders";
 import { razorpay, razorpayConfigured } from "@/lib/razorpay";
+import { UPI_ID_RE } from "@/lib/upi";
 
 // ---------- helpers ----------
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -425,8 +426,13 @@ export async function saveSettings(form: FormData) {
     disabledCouponTypes: ["PERCENT", "FLAT", "FREE_DELIVERY"].filter((t) => !bool(form, `coupon_${t}`)).join(","),
     paymentMethods: list(form, "paymentMethods").join(","),
     telegramChatId: str(form, "telegramChatId").replace(/[^0-9-]/g, ""),
+    paymentMode: str(form, "paymentMode") === "RAZORPAY" ? "RAZORPAY" : "UPI",
+    upiId: str(form, "upiId").toLowerCase(),
+    upiName: str(form, "upiName") || "Salad Stories",
   };
-  if (!data.paymentMethods) oops("/admin/settings", "Keep at least one payment method switched on.");
+  if (data.upiId && !UPI_ID_RE.test(data.upiId)) oops("/admin/settings", "That UPI ID doesn't look right. It should look like name@okaxis or 9876543210@ybl.");
+  if (data.paymentMode === "UPI" && !data.upiId) oops("/admin/settings", "Add your UPI ID so customers can pay with Google Pay.");
+  if (data.paymentMode === "RAZORPAY" && !data.paymentMethods) oops("/admin/settings", "Keep at least one payment method switched on.");
   await db.insert(storeSettings).values({ id: 1, ...data }).onConflictDoUpdate({ target: storeSettings.id, set: data });
   done("/admin/settings");
 }
@@ -509,4 +515,20 @@ export async function markSlotPreparing(form: FormData) {
   for (const r of rows) await setOrderStatus(r.id, "PREPARING", "Started from kitchen sheet");
   revalidatePath("/admin", "layout");
   redirect(`/admin/kitchen?date=${date}`);
+}
+
+// ---------- Google Pay / UPI payments ----------
+
+export async function confirmUpi(form: FormData) {
+  await requireAdmin();
+  const id = str(form, "orderId");
+  await confirmUpiPayment(id);
+  done(`/admin/orders/${id}`, "upiConfirmed");
+}
+
+export async function rejectUpi(form: FormData) {
+  await requireAdmin();
+  const id = str(form, "orderId");
+  await rejectUpiPayment(id, str(form, "reason") || "We couldn't find this payment in our account");
+  done(`/admin/orders/${id}`, "upiRejected");
 }

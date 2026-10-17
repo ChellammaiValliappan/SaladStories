@@ -37,7 +37,7 @@ export async function GET(req: Request) {
   const header = [
     "Order number", "Placed at (IST)", "Customer", "Phone", "Email", "Address", "PIN code", "Delivery slot",
     "Items", "Subtotal (₹)", "Discount (₹)", "Coupon", "Delivery fee (₹)", "Tax (₹)", "Total (₹)",
-    "Payment status", "Payment method", "Razorpay payment ID", "Order status",
+    "Payment status", "Payment method", "Payment reference", "Order status",
   ];
   const lines = rows.map((o) =>
     [
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       o.customerName, o.phone, o.email, addressLine(o.address), o.pincode, o.slotLabel,
       o.items.map((i) => `${i.quantity} x ${i.name}${i.summary ? ` (${i.summary})` : ""}`).join("; "),
       rupees(o.subtotal), rupees(o.discount), o.couponCode ?? "", rupees(o.deliveryFee), rupees(o.tax), rupees(o.total),
-      o.paymentStatus, o.paymentMethod ?? "", o.razorpayPaymentId ?? "", o.status,
+      o.paymentStatus, o.paymentMethod ?? "", o.razorpayPaymentId ?? o.upiRef ?? "", o.status,
     ].map(cell).join(","),
   );
   // BOM so Excel reads ₹ and Tamil names correctly

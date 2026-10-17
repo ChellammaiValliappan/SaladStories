@@ -7,7 +7,7 @@ Built from the *Salad Stories Master BRD* (sections 1–10).
 | | |
 |---|---|
 | **Stack** | Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Drizzle ORM · PostgreSQL |
-| **Payments** | Razorpay Checkout + server-side order, signature check and webhooks |
+| **Payments** | Google Pay / UPI to the shop's UPI ID with owner confirmation (no fees), or Razorpay Checkout with webhooks |
 | **Notifications** | Email (any SMTP), free Telegram bot alerts, optional WhatsApp Cloud API |
 | **Hosting** | Netlify Free (app) + Neon Free (PostgreSQL) — ₹0/month to start |
 

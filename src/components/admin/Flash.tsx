@@ -3,6 +3,8 @@ const MESSAGES: Record<string, string> = {
   deleted: "Deleted.",
   status: "Order status updated. The customer has been notified by email.",
   refunded: "Refund recorded.",
+  upiConfirmed: "Payment confirmed. The order is now in the kitchen queue and the customer has been emailed.",
+  upiRejected: "Marked as not received. The customer has been emailed and can pay again.",
 };
 
 export function Flash({ msg, err }: { msg?: string; err?: string }) {

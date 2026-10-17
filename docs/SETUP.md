@@ -9,13 +9,14 @@ Everything below starts on a **free plan**. Use **chellskct@gmail.com** for ever
 | GitHub | Code, automatic checks | Free | ₹0 |
 | **Netlify** | Hosting the website | Free (300 credits/month, commercial use allowed) | ₹0 |
 | **Neon** | PostgreSQL database | Free (1 GB storage, 100 compute-hours) | ₹0 |
-| Razorpay | Online payments | No monthly fee | ~2% per successful payment |
+| Google Pay (UPI) | Online payments, confirmed by you | Free | ₹0 per payment |
+| Razorpay (optional, later) | Automatic payments, cards | No monthly fee | ~2% per successful payment |
 | Gmail SMTP | Order emails | Free (≈500 emails/day) | ₹0 |
 | Telegram bot | Order alerts on your phone | Free | ₹0 |
 | Cloudinary | Food photos | Free tier | ₹0 |
 | Domain | `saladstories.in` etc. | Optional — `yourname.netlify.app` is free | ~₹800/year |
 
-**Expected total: ₹0/month + Razorpay's fee on each order.**
+**Expected total: ₹0/month** (Google Pay payments have no fees).
 
 > **Why not Vercel?** Vercel's free Hobby plan is for personal, non-commercial sites only. A shop taking payments would need Vercel Pro (~$20/month). The code still works on Vercel if you ever upgrade.
 
@@ -58,19 +59,34 @@ Everything below starts on a **free plan**. Use **chellskct@gmail.com** for ever
 
 From now on every push to `main` on GitHub redeploys the site automatically.
 
-## Step 3 — Payments (Razorpay) · 15 minutes + KYC wait
+## Step 3 — Payments: Google Pay (UPI) · 5 minutes, no fees
 
-1. Sign up at https://dashboard.razorpay.com with chellskct@gmail.com.
-2. **Test mode first:** *Account & Settings → API Keys → Generate Test Key*. Add to Netlify:
-   `RAZORPAY_KEY_ID` = `rzp_test_…`, `RAZORPAY_KEY_SECRET` = the secret.
-3. **Webhook:** *Account & Settings → Webhooks → Add new webhook*
-   - URL: `https://saladstories.netlify.app/api/webhooks/razorpay`
-   - Secret: make up a strong string → add it to Netlify as `RAZORPAY_WEBHOOK_SECRET`
-   - Events: **payment.captured**, **payment.failed**, **order.paid**
-4. *Account & Settings → Payment Capture* → **Automatic**.
-5. Netlify → **Deploys → Trigger deploy** (environment variable changes need one deploy). Place a test order with Razorpay's test UPI/card details.
-6. **Choose payment methods** any time in **Admin → Settings → Payment methods at checkout** (UPI, cards, net banking, wallets, EMI, pay later). A method must also be switched on in your Razorpay account. **Meal cards** (Pluxee/Sodexo etc.) need a request to Razorpay support; once they enable them they appear under cards/wallets automatically.
-7. **Go live:** complete **KYC** (PAN, bank account, business details; Razorpay checks that your Contact, Refund, Privacy, Terms and Delivery pages are live). Then generate **Live keys**, replace the two key values in Netlify, add a webhook for live mode the same way, and trigger a deploy.
+The site starts in **Google Pay mode**: customers pay straight to your UPI ID, with no gateway and no transaction fees.
+
+**How it works**
+1. Customer places the order → the order page shows **Pay ₹… with Google Pay** (on a computer, a QR code to scan with Google Pay).
+2. After paying, they type the 12-digit **UPI transaction ID** that Google Pay shows.
+3. You get an email/Telegram alert "Check payment". Open **Admin → Orders → Check payment**, find the payment in your Google Pay or bank app (match the amount and transaction ID), then tap **Payment received — confirm order**. The order moves to the kitchen and the customer is emailed.
+4. If you can't find the money, tap **Not received** — the customer is emailed and can pay again.
+
+**Set it up**
+1. In Google Pay on the owner's phone, tap your photo → your **UPI ID** is shown under your name (e.g. `name@okaxis`).
+2. **Admin → Settings → How customers pay** → choose **Google Pay to my UPI ID**, paste the UPI ID, save.
+3. Place a ₹1-style test order yourself (you can lower a test item's price temporarily) to see the full flow.
+
+**Good to know**
+- A **business UPI ID** (Google Pay for Business, or your bank's merchant/current-account UPI) is best for a shop: personal UPI accounts can have monthly limits for receiving payments, and some apps show warnings when a personal ID receives many payments from strangers.
+- Each transaction ID can only be used once, so the same screenshot can't pay for two orders.
+- Unconfirmed payments keep the delivery slot and any coupon reserved for 48 hours.
+- Refunds: send the money back from Google Pay, then press **Refund** on the order to record it.
+
+### Later: automatic payments with Razorpay (optional)
+
+When orders grow and checking each payment by hand takes too long, switch to Razorpay (about 2% per payment, confirmed automatically, also accepts cards and net banking):
+1. Sign up at https://dashboard.razorpay.com with chellskct@gmail.com. Razorpay asks for a PAN first — a personal PAN is fine for a sole proprietor; this starts your profile and doesn't charge anything.
+2. In **Test Mode**: *Account & Settings → API Keys → Generate Key*. Add `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in Netlify.
+3. *Webhooks → Add*: URL `https://saladstories.netlify.app/api/webhooks/razorpay`, a strong secret (also saved in Netlify as `RAZORPAY_WEBHOOK_SECRET`), events **payment.captured**, **payment.failed**, **order.paid**.
+4. Trigger a deploy, then **Admin → Settings → How customers pay → Razorpay**. After KYC, swap in the live keys.
 
 ## Step 4 — Order emails (Gmail, free) · 5 minutes
 
@@ -114,7 +130,8 @@ Buy a domain → Netlify *Domain management → Add a domain* → follow the DNS
 | Mark something sold out today | Admin → Menu → Mark sold out (staff can do this too) |
 | Add a menu category | Admin → Menu → Menu categories |
 | Add kitchen/delivery staff or another admin | Admin → Team |
-| Turn UPI / cards / wallets / EMI on or off | Admin → Settings → Payment methods |
+| Change your UPI ID or switch to Razorpay | Admin → Settings → How customers pay |
+| Confirm a Google Pay payment | Admin → Orders → Check payment |
 | Change delivery fee, minimum order, GST | Admin → Settings → Charges |
 | Add a delivery area or PIN code | Admin → Delivery |
 | Change slot times or how many orders per slot | Admin → Delivery → Delivery slots |

@@ -20,7 +20,7 @@ const BENEFITS = [
 const STEPS = [
   { title: "Choose your bowl", text: "Pick from salads, protein bowls and fruit bowls." },
   { title: "Customize your meal", text: "Change the portion, add extra protein, leave out what you don't like." },
-  { title: "Pay securely online", text: "UPI, cards, net banking and wallets through Razorpay." },
+  { title: "Pay securely online", text: "Pay in a tap with Google Pay (UPI). No extra charges." },
   { title: "Enjoy doorstep delivery", text: "Choose a slot and we'll bring it fresh to your door." },
 ];
 

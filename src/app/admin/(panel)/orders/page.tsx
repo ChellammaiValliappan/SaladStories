@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { and, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 import { db, orders } from "@/db";
 import { formatINR } from "@/lib/money";
 import { istParts } from "@/lib/time";
-import { Badge, Empty, PageHead, Table } from "@/components/admin/ui";
+import { Badge, Empty, PageHead, Table, orderBadge } from "@/components/admin/ui";
 import { AutoRefresh } from "@/components/AutoRefresh";
 
 export const metadata = { title: "Orders" };
 
 const FILTERS = [
+  { id: "verify", label: "Check payment", where: and(eq(orders.paymentStatus, "VERIFYING"), eq(orders.status, "PENDING_PAYMENT")) },
   { id: "open", label: "To prepare", where: inArray(orders.status, ["PAID", "PREPARING", "OUT_FOR_DELIVERY"]) },
   { id: "today", label: "Delivering today", where: undefined },
   { id: "all", label: "All", where: undefined },
@@ -19,7 +20,8 @@ const FILTERS = [
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
   const { status = "open", q = "" } = await searchParams;
-  const f = FILTERS.find((x) => x.id === status) ?? FILTERS[0];
+  const [{ n: toVerify }] = await db.select({ n: count() }).from(orders).where(and(eq(orders.paymentStatus, "VERIFYING"), eq(orders.status, "PENDING_PAYMENT")));
+  const f = FILTERS.find((x) => x.id === status) ?? FILTERS[1];
   const conds: (SQL | undefined)[] = [f.id === "today" ? and(eq(orders.deliveryDate, istParts().dateStr), eq(orders.paymentStatus, "PAID")) : f.where];
   if (q.trim()) {
     const like = `%${q.trim()}%`;
@@ -35,6 +37,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         {FILTERS.map((x) => (
           <Link key={x.id} href={`/admin/orders?status=${x.id}`} className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold ${x.id === f.id ? "border-basil bg-basil text-white" : "border-line bg-white"}`}>
             {x.label}
+            {x.id === "verify" && Number(toVerify) > 0 && <span className="ml-1.5 rounded-full bg-carrot px-1.5 text-xs text-white">{toVerify}</span>}
           </Link>
         ))}
         <form className="ml-auto flex gap-2">
@@ -52,7 +55,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               <Link href={`/admin/orders/${o.id}`} className="block rounded-2xl border border-line bg-white p-4">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-bold text-basil">{o.orderNumber}</p>
-                  <Badge value={o.paymentStatus === "PAID" || o.status === "CANCELLED" ? o.status : o.paymentStatus === "FAILED" ? "FAILED" : "PENDING_PAYMENT"} />
+                  <Badge value={orderBadge(o)} />
                 </div>
                 <p className="mt-1 font-semibold">{o.customerName} · {formatINR(o.total)}</p>
                 <p className="text-sm text-ink-soft">{o.slotLabel}</p>
@@ -69,7 +72,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               <td className="px-4 py-3">{o.customerName}<br /><span className="text-ink-soft">{o.phone}</span></td>
               <td className="px-4 py-3">{o.slotLabel}<br /><span className="text-ink-soft">{o.address.area} {o.pincode}</span></td>
               <td className="px-4 py-3 font-semibold">{formatINR(o.total)}</td>
-              <td className="px-4 py-3"><Badge value={o.paymentStatus === "PAID" || o.status === "CANCELLED" ? o.status : o.paymentStatus === "FAILED" ? "FAILED" : "PENDING_PAYMENT"} /></td>
+              <td className="px-4 py-3"><Badge value={orderBadge(o)} /></td>
             </tr>
           ))}
         </Table>

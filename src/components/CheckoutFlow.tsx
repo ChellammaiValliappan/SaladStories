@@ -9,6 +9,7 @@ import { useQuote } from "@/lib/use-quote";
 import { formatINR } from "@/lib/money";
 import type { SlotOption } from "@/lib/delivery";
 import { Totals } from "./Totals";
+import { GPayMark } from "./UpiPay";
 import { CouponBox } from "./CouponBox";
 import { InterestForm } from "./LocationPicker";
 
@@ -54,12 +55,14 @@ export function CheckoutFlow({
   paymentsReady,
   simulator,
   methodsText,
+  upi = false,
 }: {
   user: { name: string; email: string; phone: string } | null;
   savedAddresses: Saved[];
   paymentsReady: boolean;
   simulator: boolean;
   methodsText: string;
+  upi?: boolean;
 }) {
   const router = useRouter();
   const { lines, couponCode, hydrated, clear, setLocation, pincode: savedPin } = useCart();
@@ -145,9 +148,9 @@ export function CheckoutFlow({
   const couponBad = quote?.coupon && !quote.coupon.ok;
   const canPay = paymentsReady && !busy && !loading && quote && problems.length === 0 && serverBlockers.length === 0 && !couponBad;
 
-  function finish(orderNumber: string, token: string) {
+  function finish(orderNumber: string, token: string, payNow = false) {
     clear();
-    router.push(`/order/${orderNumber}?t=${token}&new=1`);
+    router.push(`/order/${orderNumber}?t=${token}${payNow ? "" : "&new=1"}`);
   }
 
   async function placeOrder() {
@@ -177,6 +180,8 @@ export function CheckoutFlow({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "We couldn't place your order.");
       if (data.paid) return finish(data.orderNumber, data.trackingToken);
+      // Google Pay / UPI: the order page shows the GPay button, QR code and transaction-ID box.
+      if (data.upi) return finish(data.orderNumber, data.trackingToken, true);
       if (data.simulate) {
         setSim({ orderId: data.orderId, trackingToken: data.trackingToken, amount: data.amount });
         return;
@@ -425,13 +430,25 @@ export function CheckoutFlow({
         </Step>
 
         <Step n={6} title="Payment method">
-          <div className="flex items-start gap-3 rounded-2xl bg-crate p-4">
-            <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-basil" />
-            <div className="text-sm">
-              <p className="font-semibold">Pay online with Razorpay</p>
-              <p className="text-ink-soft">Choose {methodsText} in the next step.</p>
+          {upi ? (
+            <div className="flex items-start gap-3 rounded-2xl bg-crate p-4">
+              <GPayMark />
+              <div className="text-sm">
+                <p className="font-semibold">Google Pay (UPI)</p>
+                <p className="text-ink-soft">
+                  After you place the order you'll get a Pay with Google Pay button (or a QR code on a computer). No extra charges.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-start gap-3 rounded-2xl bg-crate p-4">
+              <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-basil" />
+              <div className="text-sm">
+                <p className="font-semibold">Pay online with Razorpay</p>
+                <p className="text-ink-soft">Choose {methodsText} in the next step.</p>
+              </div>
+            </div>
+          )}
           {simulator && (
             <p className="mt-3 rounded-xl bg-mango/25 p-3 text-sm font-medium">
               Test mode: Razorpay keys aren't set, so you'll see a payment simulator instead. This never appears on the live site.
@@ -482,16 +499,16 @@ export function CheckoutFlow({
           )}
           <button type="button" onClick={placeOrder} disabled={!canPay} className="btn btn-primary mt-5 h-14 w-full rounded-2xl text-base">
             <Lock className="h-4 w-4" />
-            {busy ? "Processing…" : quote ? `Place order and pay ${formatINR(quote.totals.total)}` : "Place order and pay"}
+            {busy ? "Processing…" : quote ? `Place order · ${formatINR(quote.totals.total)}` : "Place order"}
           </button>
-          <p className="mt-3 text-center text-xs text-ink-soft">Payments are processed securely by Razorpay.</p>
+          <p className="mt-3 text-center text-xs text-ink-soft">{upi ? "Next, pay with Google Pay." : "Payments are processed securely by Razorpay."}</p>
         </div>
       </aside>
 
       {/* Phones: keep the total and pay button in reach */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <button type="button" onClick={placeOrder} disabled={!canPay} className="btn btn-primary h-14 w-full justify-between rounded-2xl px-5 text-base">
-          <span className="flex items-center gap-2"><Lock className="h-4 w-4" />{busy ? "Processing…" : "Place order and pay"}</span>
+          <span className="flex items-center gap-2"><Lock className="h-4 w-4" />{busy ? "Processing…" : "Place order"}</span>
           <span>{quote ? formatINR(quote.totals.total) : ""}</span>
         </button>
         {problems.length > 0 && <p className="mt-1.5 text-center text-xs text-ink-soft">To continue: {problems[0].toLowerCase()}.</p>}

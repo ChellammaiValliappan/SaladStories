@@ -42,20 +42,43 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <div className="flex items-end pb-2"><Check label="Menu prices already include tax" name="taxInclusive" defaultChecked={s.taxInclusive} /></div>
           </div>
         </Card>
-        <Card title="Payment methods at checkout">
-          <p className="mb-3 text-sm text-ink-soft">
-            Choose what customers see in the Razorpay window. A method also has to be active on your Razorpay account
-            (Razorpay Dashboard → Account &amp; Settings → Payment methods) — for example meal cards and pay later need Razorpay to enable them first.
-            {razorpayConfigured() && (process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_") ? " You're using TEST keys — no real money moves." : " You're using LIVE keys.")}
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {PAYMENT_METHODS.map((m) => (
-              <label key={m.code} className="flex items-center gap-2.5 text-sm font-semibold">
-                <input type="checkbox" name="paymentMethods" value={m.code} defaultChecked={parseMethods(s.paymentMethods).includes(m.code as never)} className="h-5 w-5 accent-[#1f6b3a]" />
-                {m.label}
-              </label>
-            ))}
+        <Card title="How customers pay">
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
+              <input type="radio" name="paymentMode" value="UPI" defaultChecked={s.paymentMode !== "RAZORPAY"} className="mt-1 h-5 w-5 accent-[#1f6b3a]" />
+              <span className="text-sm">
+                <span className="block font-bold">Google Pay to my UPI ID</span>
+                No fees and no gateway. Customers pay with Google Pay and enter the transaction ID; you confirm each payment in Orders → Check payment.
+              </span>
+            </label>
+            <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
+              <input type="radio" name="paymentMode" value="RAZORPAY" defaultChecked={s.paymentMode === "RAZORPAY"} className="mt-1 h-5 w-5 accent-[#1f6b3a]" />
+              <span className="text-sm">
+                <span className="block font-bold">Razorpay (automatic)</span>
+                UPI, cards, net banking and wallets, confirmed automatically. About 2% per payment; needs Razorpay keys and KYC.
+                {!razorpayConfigured() && <span className="mt-1 block font-semibold text-tomato">Razorpay keys aren't set yet.</span>}
+              </span>
+            </label>
           </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Field label="Your UPI ID" name="upiId" defaultValue={s.upiId} placeholder="e.g. saladstories@okaxis" hint="Open Google Pay → tap your photo → your UPI ID is under your name. A Google Pay for Business UPI ID is best." />
+            <Field label="Name shown in Google Pay" name="upiName" defaultValue={s.upiName} />
+          </div>
+          <details className="mt-4 rounded-xl border border-line p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Razorpay payment methods (only used in Razorpay mode)</summary>
+            <p className="mb-3 mt-2 text-sm text-ink-soft">
+              A method must also be active on your Razorpay account.
+              {razorpayConfigured() && (process.env.RAZORPAY_KEY_ID?.startsWith("rzp_test_") ? " You're using TEST keys — no real money moves." : " You're using LIVE keys.")}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {PAYMENT_METHODS.map((m) => (
+                <label key={m.code} className="flex items-center gap-2.5 text-sm font-semibold">
+                  <input type="checkbox" name="paymentMethods" value={m.code} defaultChecked={parseMethods(s.paymentMethods).includes(m.code as never)} className="h-5 w-5 accent-[#1f6b3a]" />
+                  {m.label}
+                </label>
+              ))}
+            </div>
+          </details>
         </Card>
         <Card title="Free order alerts on Telegram">
           <p className="mb-3 text-sm text-ink-soft">

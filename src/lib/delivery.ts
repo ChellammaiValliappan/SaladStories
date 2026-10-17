@@ -15,6 +15,8 @@ export function occupyingOrders() {
   const holdSince = new Date(Date.now() - PENDING_HOLD_MINUTES * 60_000);
   return or(
     inArray(orders.status, ACTIVE_ORDER_STATUSES),
+    // Customer says they paid by UPI and the owner hasn't checked yet.
+    and(eq(orders.status, "PENDING_PAYMENT"), eq(orders.paymentStatus, "VERIFYING")),
     and(eq(orders.status, "PENDING_PAYMENT"), gte(orders.createdAt, holdSince)),
   )!;
 }

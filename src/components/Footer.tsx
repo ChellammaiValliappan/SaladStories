@@ -70,7 +70,7 @@ export async function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10 py-5 text-center text-xs text-white/50">
-        © {new Date().getFullYear()} {s.businessName}. Payments secured by Razorpay.
+        © {new Date().getFullYear()} {s.businessName}. {s.paymentMode === "RAZORPAY" ? "Payments secured by Razorpay." : "Pay easily with Google Pay (UPI)."}
       </div>
     </footer>
   );

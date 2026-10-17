@@ -6,9 +6,9 @@ import { db, orderEvents, orders } from "@/db";
 import { formatINR } from "@/lib/money";
 import { addressLine, STATUS_LABELS } from "@/lib/notify";
 import { whatsappLink } from "@/lib/settings";
-import { refundOrder, updateOrderStatus } from "../../../actions";
+import { confirmUpi, rejectUpi, refundOrder, updateOrderStatus } from "../../../actions";
 import { getCurrentUser } from "@/lib/auth";
-import { Badge, Card, PageHead } from "@/components/admin/ui";
+import { Badge, Card, PageHead, orderBadge } from "@/components/admin/ui";
 import { Flash } from "@/components/admin/Flash";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 
@@ -34,9 +34,37 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHead title={`Order ${order.orderNumber}`} back={{ href: "/admin/orders", label: "Orders" }}>
-        <Badge value={order.paymentStatus === "PAID" || order.status === "CANCELLED" ? order.status : order.paymentStatus === "FAILED" ? "FAILED" : "PENDING_PAYMENT"} />
+        <Badge value={orderBadge(order)} />
       </PageHead>
       <Flash msg={sp.msg} err={sp.err} />
+      {order.paymentStatus === "VERIFYING" && order.status !== "CANCELLED" && (
+        <section className="mb-6 rounded-2xl border-2 border-carrot bg-white p-5">
+          <h2 className="text-xl font-bold">Check this Google Pay payment</h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            Open Google Pay (or your bank app) on the phone linked to your UPI ID and look for this payment. Only confirm it once you can see the money.
+          </p>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-crate p-3"><dt className="text-xs font-semibold text-ink-soft">Amount</dt><dd className="font-display text-2xl font-[800]">{formatINR(order.total)}</dd></div>
+            <div className="rounded-xl bg-crate p-3"><dt className="text-xs font-semibold text-ink-soft">UPI transaction ID</dt><dd className="font-display text-2xl font-[800] tracking-wider">{order.upiRef}</dd></div>
+            <div className="rounded-xl bg-crate p-3"><dt className="text-xs font-semibold text-ink-soft">From</dt><dd className="font-semibold">{order.customerName}<br /><span className="text-sm font-normal">{order.phone}</span></dd></div>
+          </dl>
+          {me?.role === "ADMIN" ? (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <form action={confirmUpi}>
+                <input type="hidden" name="orderId" value={order.id} />
+                <SubmitButton className="btn btn-primary" pendingText="Confirming…">Payment received — confirm order</SubmitButton>
+              </form>
+              <form action={rejectUpi} className="flex flex-wrap gap-2">
+                <input type="hidden" name="orderId" value={order.id} />
+                <input name="reason" className="field min-h-12 w-64" placeholder="Reason (optional)" />
+                <SubmitButton className="btn btn-ghost text-tomato" confirm="Mark this payment as not received? The customer will be emailed and asked to pay again." pendingText="Saving…">Not received</SubmitButton>
+              </form>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm font-semibold">Ask an admin to confirm this payment.</p>
+          )}
+        </section>
+      )}
       <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
         <div className="space-y-6">
           <Card title="Items">
@@ -110,10 +138,12 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
               {order.paymentMethod && <div className="flex justify-between"><dt>Method</dt><dd>{order.paymentMethod}</dd></div>}
               {order.razorpayOrderId && <div className="flex justify-between gap-2"><dt>Razorpay order</dt><dd className="truncate">{order.razorpayOrderId}</dd></div>}
               {order.razorpayPaymentId && <div className="flex justify-between gap-2"><dt>Payment ID</dt><dd className="truncate">{order.razorpayPaymentId}</dd></div>}
+              {order.upiRef && <div className="flex justify-between gap-2"><dt>UPI transaction ID</dt><dd>{order.upiRef}</dd></div>}
             </dl>
             {order.paymentStatus === "PAID" && me?.role === "ADMIN" && (
               <form action={refundOrder} className="mt-4 space-y-2 border-t border-line pt-4">
                 <input type="hidden" name="orderId" value={order.id} />
+                {order.upiRef && <p className="text-xs text-ink-soft">Paid by Google Pay: send the refund to the customer from your Google Pay app first, then record it here.</p>}
                 <label className="label" htmlFor="amount">Refund amount (₹)</label>
                 <input id="amount" name="amount" type="number" step="0.01" min="1" max={order.total / 100} defaultValue={order.total / 100} className="field" />
                 <SubmitButton className="btn btn-ghost w-full text-beet" confirm="Send this refund through Razorpay? This can't be undone." pendingText="Refunding…">Refund</SubmitButton>

@@ -49,7 +49,7 @@ flowchart TD
    6. Payment method (Razorpay)
    7. Review and confirm + accept the refund policy
    8. **Place order and pay ₹…** (sticky on phones)
-8. **Razorpay** opens; customer pays with UPI/GPay, card, net banking or wallet.
+8. **Payment.** In Google Pay mode (current): the order page shows **Pay ₹… with Google Pay** (QR code on a computer); after paying, the customer enters the 12-digit UPI transaction ID and sees "We're checking your payment" until the owner confirms. In Razorpay mode: Razorpay Checkout opens and payment is confirmed automatically.
 9. **Confirmation page** — "Thank you! Your order is confirmed", order number, slot, items, totals; email with a tracking link.
 10. **Tracking page** — Confirmed → Being prepared → Out for delivery → Delivered with times; "Questions? WhatsApp us"; *Order again*.
 
@@ -87,6 +87,7 @@ Sign in at **/admin**. There are two kinds of team accounts (Admin → Team):
 - **Staff** — dashboard, orders (move them along) and sold-out switches only. Good for kitchen and delivery helpers.
 
 ### Daily routine
+0. **Check payments** (Google Pay mode): the dashboard shows "N Google Pay payments to check". Open each, find the matching amount and UPI transaction ID in your Google Pay/bank app, and tap **Payment received** (or **Not received**).
 1. **Morning — Menu:** mark anything you can't make today as *Sold out* (one tap), or *Disable for now*.
 2. **Delivery:** check today's slots; add a holiday if closed (Delivery → Holidays and closed days).
 3. **During service — Orders → To prepare:** new paid orders arrive (also by email and Telegram/WhatsApp; the page refreshes every 30 seconds).

@@ -34,6 +34,7 @@ const TONES: Record<string, string> = {
   CANCELLED: "bg-ink/10 text-ink-soft",
   PENDING_PAYMENT: "bg-crate text-ink-soft",
   FAILED: "bg-tomato/15 text-tomato",
+  VERIFYING: "bg-carrot text-white",
   REFUNDED: "bg-beet/15 text-beet",
   PUBLISHED: "bg-basil-soft text-basil-deep",
   DRAFT: "bg-crate text-ink-soft",
@@ -41,7 +42,16 @@ const TONES: Record<string, string> = {
   ACTIVE: "bg-basil-soft text-basil-deep",
   INACTIVE: "bg-crate text-ink-soft",
 };
-const LABELS: Record<string, string> = { PENDING_PAYMENT: "Awaiting payment", OUT_FOR_DELIVERY: "Out for delivery" };
+const LABELS: Record<string, string> = { PENDING_PAYMENT: "Awaiting payment", OUT_FOR_DELIVERY: "Out for delivery", VERIFYING: "Check payment" };
+
+/** One badge value for an order, combining payment and kitchen status. */
+export function orderBadge(o: { status: string; paymentStatus: string }) {
+  if (o.status === "CANCELLED") return "CANCELLED";
+  if (o.paymentStatus === "PAID") return o.status;
+  if (o.paymentStatus === "VERIFYING") return "VERIFYING";
+  if (o.paymentStatus === "FAILED") return "FAILED";
+  return "PENDING_PAYMENT";
+}
 
 export function Badge({ value }: { value: string }) {
   const label = LABELS[value] ?? value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ");
