@@ -18,7 +18,7 @@ export async function SetupChecklist() {
   type Item = { done: boolean; label: string; href?: string; hint?: string; optional?: boolean };
   const upi = s.paymentMode !== "RAZORPAY";
   const paymentItems: Item[] = upi
-    ? [{ done: UPI_ID_RE.test(s.upiId), label: "Add your UPI ID for Google Pay payments", href: "/admin/settings", hint: "Settings → How customers pay." }]
+    ? [{ done: UPI_ID_RE.test(s.upiId) && s.upiIdType === "BUSINESS", label: "Add a business UPI ID for Google Pay payments", href: "/admin/settings", hint: "Google Pay refuses website payments into personal UPI IDs. A free PhonePe/Paytm/Google Pay business UPI ID works." }]
     : [
         { done: razorpayConfigured(), label: "Connect Razorpay (test keys are fine to start)", href: "/admin/settings", hint: "Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your hosting settings." },
         { done: !!process.env.RAZORPAY_WEBHOOK_SECRET, label: "Add the Razorpay webhook", hint: "So orders are confirmed even if a customer closes the payment window." },

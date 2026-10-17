@@ -1,0 +1,1 @@
+ALTER TABLE "store_settings" ADD COLUMN "upi_merchant_code" text DEFAULT '' NOT NULL;

@@ -18,25 +18,37 @@ export interface UpiPayment {
   payeeName: string;
   amount: number; // paise
   orderNumber: string;
-  /** true for a merchant/business UPI ID; false for a personal one. */
-  merchant: boolean;
+  /** Merchant category code from the business UPI QR (optional). */
+  merchantCode?: string;
 }
 
-/**
- * Personal UPI IDs: send only payee + currency. Google Pay rejects links to
- * personal IDs that look like shop payments (fixed amount / transaction
- * reference) with a misleading "limit exceeded" error, so the customer types
- * the amount themselves.
- * Business (merchant) UPI IDs: amount, note and order reference are filled in.
- */
+/** Amount, note and order reference are always filled in, so the customer can't pay the wrong amount. */
 function query(p: UpiPayment) {
-  const base: Record<string, string> = { pa: p.upiId, pn: p.payeeName.slice(0, 50), cu: "INR" };
-  const fields: Record<string, string> = p.merchant
-    ? { ...base, am: (p.amount / 100).toFixed(2), tn: `Salad Stories ${p.orderNumber}`, tr: p.orderNumber }
-    : base;
+  const fields: Record<string, string> = {
+    pa: p.upiId,
+    pn: p.payeeName.slice(0, 50),
+    am: (p.amount / 100).toFixed(2),
+    cu: "INR",
+    tn: `Salad Stories ${p.orderNumber}`,
+    tr: p.orderNumber,
+  };
+  if (p.merchantCode && /^\d{4}$/.test(p.merchantCode)) fields.mc = p.merchantCode;
   const params = new URLSearchParams(fields);
   // UPI apps expect %20 rather than + for spaces.
   return params.toString().replace(/\+/g, "%20");
+}
+
+/**
+ * Reads a UPI QR's text (e.g. "upi://pay?pa=shop@ybl&pn=Salad%20Stories&mc=5814")
+ * so the owner can paste it instead of typing details.
+ */
+export function parseUpiLink(text: string) {
+  const t = text.trim();
+  const q = t.includes("?") ? t.slice(t.indexOf("?") + 1) : t;
+  const p = new URLSearchParams(q);
+  const pa = p.get("pa")?.trim().toLowerCase() ?? "";
+  if (!UPI_ID_RE.test(pa)) return null;
+  return { upiId: pa, payeeName: p.get("pn")?.trim() ?? "", merchantCode: /^\d{4}$/.test(p.get("mc") ?? "") ? p.get("mc")! : "" };
 }
 
 /** Standard UPI link — any UPI app (and every UPI QR scanner) understands it. */

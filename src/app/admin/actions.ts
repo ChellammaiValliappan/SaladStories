@@ -27,7 +27,7 @@ import {
 import { hashPassword, requireAdmin, requireStaff } from "@/lib/auth";
 import { confirmUpiPayment, rejectUpiPayment, setOrderStatus, ORDER_STATUSES } from "@/lib/orders";
 import { razorpay, razorpayConfigured } from "@/lib/razorpay";
-import { UPI_ID_RE } from "@/lib/upi";
+import { parseUpiLink, UPI_ID_RE } from "@/lib/upi";
 
 // ---------- helpers ----------
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -430,7 +430,20 @@ export async function saveSettings(form: FormData) {
     upiId: str(form, "upiId").toLowerCase(),
     upiName: str(form, "upiName") || "Salad Stories",
     upiIdType: str(form, "upiIdType") === "BUSINESS" ? "BUSINESS" : "PERSONAL",
+    upiMerchantCode: /^\d{4}$/.test(str(form, "upiMerchantCode")) ? str(form, "upiMerchantCode") : "",
   };
+  // Pasting the text of a business UPI QR fills in the details automatically.
+  const qr = str(form, "upiQrText");
+  if (qr) {
+    const parsed = parseUpiLink(qr);
+    if (!parsed) oops("/admin/settings", "Couldn't read that QR text. It should start with upi://pay?pa=…");
+    data.upiId = parsed.upiId;
+    if (parsed.payeeName) data.upiName = parsed.payeeName;
+    if (parsed.merchantCode) {
+      data.upiMerchantCode = parsed.merchantCode;
+      data.upiIdType = "BUSINESS";
+    }
+  }
   if (data.upiId && !UPI_ID_RE.test(data.upiId)) oops("/admin/settings", "That UPI ID doesn't look right. It should look like name@okaxis or 9876543210@ybl.");
   if (data.paymentMode === "UPI" && !data.upiId) oops("/admin/settings", "Add your UPI ID so customers can pay with Google Pay.");
   if (data.paymentMode === "RAZORPAY" && !data.paymentMethods) oops("/admin/settings", "Keep at least one payment method switched on.");

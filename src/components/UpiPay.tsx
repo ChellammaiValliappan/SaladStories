@@ -25,8 +25,6 @@ type Props = {
   gpayIos: string;
   qrDataUrl: string;
   retry?: boolean;
-  /** false for personal UPI IDs: the customer types the amount in Google Pay. */
-  amountPrefilled?: boolean;
 };
 
 export function UpiPay(p: Props) {
@@ -88,12 +86,6 @@ export function UpiPay(p: Props) {
             Pay with Google Pay
           </h2>
 
-          {!p.amountPrefilled && (
-            <p className="mt-2 rounded-xl bg-mango/25 p-3 text-sm">
-              Google Pay opens with <b>{p.payeeName}</b>. Type the amount <b>{rupees}</b> exactly, then pay.
-            </p>
-          )}
-
           {mobile && (
             <a
               href={platform === "ios" ? p.gpayIos : p.gpayAndroid}
@@ -109,10 +101,7 @@ export function UpiPay(p: Props) {
               <img src={p.qrDataUrl} alt={`UPI QR code to pay ${rupees} to ${p.payeeName}`} width={200} height={200} className="rounded-xl bg-white p-2" />
               <div className="text-sm">
                 <p className="font-semibold">Scan with Google Pay on your phone</p>
-                <p className="mt-1 text-ink-soft">
-                  Open Google Pay → Scan QR code.{" "}
-                  {p.amountPrefilled ? `The amount (${rupees}) fills in automatically.` : `Then type ${rupees} as the amount.`}
-                </p>
+                <p className="mt-1 text-ink-soft">Open Google Pay → Scan QR code. The amount ({rupees}) fills in automatically.</p>
               </div>
             </div>
           )}

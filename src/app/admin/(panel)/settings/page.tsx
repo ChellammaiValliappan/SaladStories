@@ -68,15 +68,28 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <legend className="label">What kind of UPI ID is this?</legend>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 text-sm has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
-                <input type="radio" name="upiIdType" value="PERSONAL" defaultChecked={s.upiIdType !== "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
-                <span><b className="block">Personal UPI ID</b>Your own Google Pay / bank UPI ID. Customers type the amount themselves (Google Pay blocks pre-filled amounts to personal IDs).</span>
+                <input type="radio" name="upiIdType" value="BUSINESS" defaultChecked={s.upiIdType === "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
+                <span><b className="block">Business / merchant UPI ID (recommended)</b>From PhonePe Business, Paytm for Business, Google Pay for Business or your bank's merchant QR. Works with Google Pay, amount filled in automatically. Free for UPI.</span>
               </label>
               <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 text-sm has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
-                <input type="radio" name="upiIdType" value="BUSINESS" defaultChecked={s.upiIdType === "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
-                <span><b className="block">Business / merchant UPI ID</b>From Google Pay for Business, PhonePe/Paytm for Business or your bank's merchant QR. The amount fills in automatically.</span>
+                <input type="radio" name="upiIdType" value="PERSONAL" defaultChecked={s.upiIdType !== "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
+                <span><b className="block">Personal UPI ID</b>Google Pay usually refuses website payments into personal UPI IDs (customers see &ldquo;limit exceeded&rdquo;). Use only for testing.</span>
               </label>
             </div>
           </fieldset>
+          {s.upiIdType !== "BUSINESS" && s.paymentMode !== "RAZORPAY" && (
+            <p className="mt-3 rounded-xl bg-tomato/10 p-3 text-sm font-semibold text-tomato">
+              Customers can&rsquo;t pay a personal UPI ID from the website in Google Pay. Add a business UPI ID below to start taking orders.
+            </p>
+          )}
+          <div className="mt-4 grid gap-4 md:grid-cols-[1fr_12rem]">
+            <div>
+              <label className="label" htmlFor="upiQrText">Easiest: paste the text of your business UPI QR</label>
+              <input id="upiQrText" name="upiQrText" className="field" placeholder="upi://pay?pa=…&pn=…&mc=…" />
+              <p className="mt-1 text-xs text-ink-soft">Point Google Lens (or any QR scanner) at your business QR sticker and copy the text it shows. We'll fill in the UPI ID, name and merchant code for you.</p>
+            </div>
+            <Field label="Merchant code (mc)" name="upiMerchantCode" defaultValue={s.upiMerchantCode} placeholder="e.g. 5814" hint="Optional — 4 digits from your QR." />
+          </div>
           <details className="mt-4 rounded-xl border border-line p-4">
             <summary className="cursor-pointer text-sm font-semibold">Razorpay payment methods (only used in Razorpay mode)</summary>
             <p className="mb-3 mt-2 text-sm text-ink-soft">

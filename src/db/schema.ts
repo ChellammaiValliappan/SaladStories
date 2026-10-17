@@ -206,9 +206,11 @@ export const storeSettings = pgTable("store_settings", {
   paymentMode: text("payment_mode").notNull().default("UPI"),
   upiId: text("upi_id").notNull().default(""),
   upiName: text("upi_name").notNull().default("Salad Stories"),
-  // PERSONAL: plain "pay to UPI ID" link (customer types the amount) — Google Pay rejects
-  // shop-style links to personal IDs. BUSINESS: merchant UPI ID, amount filled in automatically.
+  // PERSONAL or BUSINESS (merchant). Google Pay only accepts website payments into a
+  // business/merchant UPI ID, so the admin warns while a personal ID is set.
   upiIdType: text("upi_id_type").notNull().default("PERSONAL"),
+  // Merchant category code from the business UPI QR (the "mc" value); optional.
+  upiMerchantCode: text("upi_merchant_code").notNull().default(""),
 });
 
 // ---------- Coupons ----------
