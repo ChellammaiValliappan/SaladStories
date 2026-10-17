@@ -26,9 +26,9 @@ type Props = {
   qrDataUrl: string;
   retry?: boolean;
   /**
-   * Business/merchant UPI IDs accept a tap-to-pay link from the website.
-   * Personal UPI IDs don't (banks refuse it as "exceeded the bank limit"), so on
-   * phones the customer saves the QR and scans it from their gallery instead.
+   * Business/merchant UPI IDs reliably accept the tap-to-pay link.
+   * Some banks refuse it for personal IDs ("exceeded the bank limit"), so for
+   * personal IDs phones also get a save-QR fallback under the button.
    */
   merchant?: boolean;
 };
@@ -92,7 +92,7 @@ export function UpiPay(p: Props) {
             Pay with Google Pay
           </h2>
 
-          {mobile && p.merchant && (
+          {mobile && (
             <a
               href={platform === "ios" ? p.gpayIos : p.gpayAndroid}
               className="btn btn-primary mt-3 h-14 w-full rounded-2xl text-base"
@@ -103,12 +103,15 @@ export function UpiPay(p: Props) {
 
           {mobile && !p.merchant && (
             <div className="mt-3 rounded-2xl bg-crate p-4">
+              <p className="mb-3 text-sm">
+                <b>Button didn&apos;t work?</b> If Google Pay says &ldquo;exceeded the bank limit&rdquo; (no money is taken), pay by scanning this QR code instead:
+              </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.qrDataUrl} alt={`UPI QR code to pay ${rupees} to ${p.payeeName}`} width={220} height={220} className="mx-auto rounded-xl bg-white p-2" />
               {platform === "ios" ? (
                 <p className="mt-3 text-center text-sm font-semibold">Press and hold the QR code → <b>Save to Photos</b> (or take a screenshot)</p>
               ) : (
-                <a href={p.qrDataUrl} download={`salad-stories-${p.orderNumber}.png`} className="btn btn-primary mt-3 h-12 w-full rounded-2xl">
+                <a href={p.qrDataUrl} download={`salad-stories-${p.orderNumber}.png`} className="btn btn-ghost mt-3 h-12 w-full rounded-2xl">
                   <Download className="h-4 w-4" /> Save QR code to phone
                 </a>
               )}
