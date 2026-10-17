@@ -69,14 +69,16 @@ The site starts in **Google Pay mode**: customers pay straight to your UPI ID, w
 3. You get an email/Telegram alert "Check payment". Open **Admin → Orders → Check payment**, find the payment in your Google Pay or bank app (match the amount and transaction ID), then tap **Payment received — confirm order**. The order moves to the kitchen and the customer is emailed.
 4. If you can't find the money, tap **Not received** — the customer is emailed and can pay again.
 
-**Set it up — you need a business (merchant) UPI ID**
+**Set it up — paste your Google Pay QR (2 minutes)**
 
-Google Pay refuses website payments into a *personal* UPI ID (customers see "limit exceeded" / "bank limit exceeded" and no money moves). A free business UPI ID fixes this and lets the amount fill in automatically. Customers still pay with Google Pay — UPI works across all apps.
+Google Pay checks that a payment request matches the receiver's real QR code — the exact account-holder name and Google Pay's hidden fields. Typed-in details (e.g. the name "Salad Stories" on a personal account) get refused with "bank limit exceeded". So the site builds every payment link from your own QR:
 
-1. Get a free merchant UPI QR from any one of: **PhonePe Business** app, **Paytm for Business** app, **Google Pay for Business**, or your bank (ask for a "UPI merchant QR" on your current/savings account). PAN + bank account is usually enough for a small shop; UPI has no fee for merchants.
-2. Point **Google Lens** (or any QR scanner) at that business QR and copy the text it shows — it starts with `upi://pay?pa=…`.
-3. **Admin → Settings → How customers pay** → choose **Google Pay to my UPI ID** → paste that text into **"paste the text of your business UPI QR"** → **Save settings**. The UPI ID, name and merchant code fill in automatically and the type switches to *Business*.
-4. Place a small test order and pay it with Google Pay from another phone.
+1. In Google Pay on the owner's phone, tap your profile photo → **your QR code** → take a screenshot.
+2. Open the screenshot in **Google Lens** (Google Photos → Lens, or the Google app) and copy the text it finds — it starts with `upi://pay?pa=…`. (Or scan the QR shown on your phone with another phone's Google Lens.)
+3. **Admin → Settings → How customers pay** → choose **Google Pay to my UPI ID** → paste the text into **"paste the text of your Google Pay QR"** → **Save settings**.
+4. Place a small test order from another phone and pay it with Google Pay. The amount fills in automatically.
+
+Using a business QR (PhonePe Business, Paytm for Business, Google Pay for Business or a bank merchant QR) works the same way — paste its text instead. Business IDs avoid personal-account receiving limits.
 
 **Good to know**
 - A **business UPI ID** (Google Pay for Business, or your bank's merchant/current-account UPI) is best for a shop: personal UPI accounts can have monthly limits for receiving payments, and some apps show warnings when a personal ID receives many payments from strangers.

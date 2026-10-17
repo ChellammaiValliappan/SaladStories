@@ -30,6 +30,7 @@ import { razorpay, razorpayConfigured } from "@/lib/razorpay";
 import { parseUpiLink, UPI_ID_RE } from "@/lib/upi";
 
 // ---------- helpers ----------
+const getSettingsRow = async () => (await db.select().from(storeSettings).where(eq(storeSettings.id, 1)))[0];
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const bool = (f: FormData, k: string) => f.get(k) === "on" || f.get(k) === "true";
 const intOrNull = (f: FormData, k: string) => {
@@ -439,10 +440,12 @@ export async function saveSettings(form: FormData) {
     if (!parsed) oops("/admin/settings", "Couldn't read that QR text. It should start with upi://pay?pa=…");
     data.upiId = parsed.upiId;
     if (parsed.payeeName) data.upiName = parsed.payeeName;
-    if (parsed.merchantCode) {
-      data.upiMerchantCode = parsed.merchantCode;
-      data.upiIdType = "BUSINESS";
-    }
+    data.upiMerchantCode = parsed.merchantCode;
+    data.upiIdType = parsed.merchantCode ? "BUSINESS" : "PERSONAL";
+    (data as Record<string, unknown>).upiQrExtras = parsed.extras;
+  } else if (data.upiId !== (await getSettingsRow()).upiId) {
+    // A different UPI ID typed by hand: the old QR's extra fields no longer apply.
+    (data as Record<string, unknown>).upiQrExtras = {};
   }
   if (data.upiId && !UPI_ID_RE.test(data.upiId)) oops("/admin/settings", "That UPI ID doesn't look right. It should look like name@okaxis or 9876543210@ybl.");
   if (data.paymentMode === "UPI" && !data.upiId) oops("/admin/settings", "Add your UPI ID so customers can pay with Google Pay.");

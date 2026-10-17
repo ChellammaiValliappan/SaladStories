@@ -1,0 +1,1 @@
+ALTER TABLE "store_settings" ADD COLUMN "upi_qr_extras" jsonb DEFAULT '{}'::jsonb NOT NULL;

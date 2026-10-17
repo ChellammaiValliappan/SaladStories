@@ -211,6 +211,8 @@ export const storeSettings = pgTable("store_settings", {
   upiIdType: text("upi_id_type").notNull().default("PERSONAL"),
   // Merchant category code from the business UPI QR (the "mc" value); optional.
   upiMerchantCode: text("upi_merchant_code").notNull().default(""),
+  // Extra fields from the owner's pasted QR (e.g. Google Pay's "aid"), kept as-is.
+  upiQrExtras: jsonb("upi_qr_extras").$type<Record<string, string>>().notNull().default({}),
 });
 
 // ---------- Coupons ----------

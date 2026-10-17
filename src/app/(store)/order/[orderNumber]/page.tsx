@@ -47,7 +47,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const verifying = order.paymentStatus === "VERIFYING" && order.status !== "CANCELLED";
   let upi: React.ComponentProps<typeof UpiPay> | null = null;
   if (awaitingUpi) {
-    const pay = { upiId: settings.upiId, payeeName: settings.upiName || settings.businessName, amount: order.total, orderNumber: order.orderNumber, merchantCode: settings.upiMerchantCode };
+    const pay = { upiId: settings.upiId, payeeName: settings.upiName || settings.businessName, amount: order.total, orderNumber: order.orderNumber, merchantCode: settings.upiMerchantCode, qrExtras: settings.upiQrExtras };
     upi = {
       orderId: order.id,
       trackingToken: order.trackingToken,

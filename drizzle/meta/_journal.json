@@ -36,6 +36,13 @@
       "when": 1792211049470,
       "tag": "0004_upi_merchant_code",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792211574131,
+      "tag": "0005_upi_qr_extras",
+      "breakpoints": true
     }
   ]
 }

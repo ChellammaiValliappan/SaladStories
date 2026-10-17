@@ -62,7 +62,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <Field label="Your UPI ID" name="upiId" defaultValue={s.upiId} placeholder="e.g. saladstories@okaxis" hint="Open Google Pay → tap your photo → your UPI ID is under your name. A Google Pay for Business UPI ID is best." />
-            <Field label="Name shown in Google Pay" name="upiName" defaultValue={s.upiName} />
+            <Field label="Account holder name" name="upiName" defaultValue={s.upiName} hint="Must match the name on the UPI account exactly — filled in from your QR." />
           </div>
           <fieldset className="mt-4">
             <legend className="label">What kind of UPI ID is this?</legend>
@@ -73,20 +73,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               </label>
               <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 text-sm has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
                 <input type="radio" name="upiIdType" value="PERSONAL" defaultChecked={s.upiIdType !== "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
-                <span><b className="block">Personal UPI ID</b>Google Pay usually refuses website payments into personal UPI IDs (customers see &ldquo;limit exceeded&rdquo;). Use only for testing.</span>
+                <span><b className="block">Personal UPI ID</b>Your own Google Pay account. Paste your Google Pay QR text below so payments are accepted. Personal accounts can have monthly receiving limits.</span>
               </label>
             </div>
           </fieldset>
-          {s.upiIdType !== "BUSINESS" && s.paymentMode !== "RAZORPAY" && (
-            <p className="mt-3 rounded-xl bg-tomato/10 p-3 text-sm font-semibold text-tomato">
-              Customers can&rsquo;t pay a personal UPI ID from the website in Google Pay. Add a business UPI ID below to start taking orders.
+          {s.paymentMode !== "RAZORPAY" && Object.keys(s.upiQrExtras ?? {}).length === 0 && s.upiIdType !== "BUSINESS" && (
+            <p className="mt-3 rounded-xl bg-mango/25 p-3 text-sm font-semibold">
+              Paste the text of your own Google Pay QR below. Google Pay checks that the payment request matches your real QR (exact name and its hidden fields); typed-in details are often refused with &ldquo;bank limit exceeded&rdquo;.
             </p>
           )}
           <div className="mt-4 grid gap-4 md:grid-cols-[1fr_12rem]">
             <div>
-              <label className="label" htmlFor="upiQrText">Easiest: paste the text of your business UPI QR</label>
-              <input id="upiQrText" name="upiQrText" className="field" placeholder="upi://pay?pa=…&pn=…&mc=…" />
-              <p className="mt-1 text-xs text-ink-soft">Point Google Lens (or any QR scanner) at your business QR sticker and copy the text it shows. We'll fill in the UPI ID, name and merchant code for you.</p>
+              <label className="label" htmlFor="upiQrText">Best: paste the text of your Google Pay QR</label>
+              <input id="upiQrText" name="upiQrText" className="field" placeholder="upi://pay?pa=…&pn=…" />
+              <p className="mt-1 text-xs text-ink-soft">
+                In Google Pay tap your photo → <b>your QR code</b> → take a screenshot. Open the screenshot with <b>Google Lens</b> and copy the text it shows (starts with upi://pay). Works for personal and business QRs.
+                {Object.keys(s.upiQrExtras ?? {}).length > 0 && " ✓ QR details saved."}
+              </p>
             </div>
             <Field label="Merchant code (mc)" name="upiMerchantCode" defaultValue={s.upiMerchantCode} placeholder="e.g. 5814" hint="Optional — 4 digits from your QR." />
           </div>
