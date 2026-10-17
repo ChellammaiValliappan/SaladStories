@@ -47,7 +47,8 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const verifying = order.paymentStatus === "VERIFYING" && order.status !== "CANCELLED";
   let upi: React.ComponentProps<typeof UpiPay> | null = null;
   if (awaitingUpi) {
-    const pay = { upiId: settings.upiId, payeeName: settings.upiName || settings.businessName, amount: order.total, orderNumber: order.orderNumber };
+    const merchant = settings.upiIdType === "BUSINESS";
+    const pay = { upiId: settings.upiId, payeeName: settings.upiName || settings.businessName, amount: order.total, orderNumber: order.orderNumber, merchant };
     upi = {
       orderId: order.id,
       trackingToken: order.trackingToken,
@@ -59,6 +60,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
       gpayIos: gpayIosUri(pay),
       qrDataUrl: await QRCode.toDataURL(upiUri(pay), { margin: 1, width: 400, color: { dark: "#12452a", light: "#ffffff" } }),
       retry: order.paymentStatus === "FAILED",
+      amountPrefilled: merchant,
     };
   }
 

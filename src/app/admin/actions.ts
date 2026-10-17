@@ -429,6 +429,7 @@ export async function saveSettings(form: FormData) {
     paymentMode: str(form, "paymentMode") === "RAZORPAY" ? "RAZORPAY" : "UPI",
     upiId: str(form, "upiId").toLowerCase(),
     upiName: str(form, "upiName") || "Salad Stories",
+    upiIdType: str(form, "upiIdType") === "BUSINESS" ? "BUSINESS" : "PERSONAL",
   };
   if (data.upiId && !UPI_ID_RE.test(data.upiId)) oops("/admin/settings", "That UPI ID doesn't look right. It should look like name@okaxis or 9876543210@ybl.");
   if (data.paymentMode === "UPI" && !data.upiId) oops("/admin/settings", "Add your UPI ID so customers can pay with Google Pay.");

@@ -18,17 +18,23 @@ export interface UpiPayment {
   payeeName: string;
   amount: number; // paise
   orderNumber: string;
+  /** true for a merchant/business UPI ID; false for a personal one. */
+  merchant: boolean;
 }
 
+/**
+ * Personal UPI IDs: send only payee + currency. Google Pay rejects links to
+ * personal IDs that look like shop payments (fixed amount / transaction
+ * reference) with a misleading "limit exceeded" error, so the customer types
+ * the amount themselves.
+ * Business (merchant) UPI IDs: amount, note and order reference are filled in.
+ */
 function query(p: UpiPayment) {
-  const params = new URLSearchParams({
-    pa: p.upiId,
-    pn: p.payeeName.slice(0, 50),
-    am: (p.amount / 100).toFixed(2),
-    cu: "INR",
-    tn: `Salad Stories ${p.orderNumber}`,
-    tr: p.orderNumber,
-  });
+  const base: Record<string, string> = { pa: p.upiId, pn: p.payeeName.slice(0, 50), cu: "INR" };
+  const fields: Record<string, string> = p.merchant
+    ? { ...base, am: (p.amount / 100).toFixed(2), tn: `Salad Stories ${p.orderNumber}`, tr: p.orderNumber }
+    : base;
+  const params = new URLSearchParams(fields);
   // UPI apps expect %20 rather than + for spaces.
   return params.toString().replace(/\+/g, "%20");
 }

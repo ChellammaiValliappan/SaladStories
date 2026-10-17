@@ -64,6 +64,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <Field label="Your UPI ID" name="upiId" defaultValue={s.upiId} placeholder="e.g. saladstories@okaxis" hint="Open Google Pay → tap your photo → your UPI ID is under your name. A Google Pay for Business UPI ID is best." />
             <Field label="Name shown in Google Pay" name="upiName" defaultValue={s.upiName} />
           </div>
+          <fieldset className="mt-4">
+            <legend className="label">What kind of UPI ID is this?</legend>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 text-sm has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
+                <input type="radio" name="upiIdType" value="PERSONAL" defaultChecked={s.upiIdType !== "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
+                <span><b className="block">Personal UPI ID</b>Your own Google Pay / bank UPI ID. Customers type the amount themselves (Google Pay blocks pre-filled amounts to personal IDs).</span>
+              </label>
+              <label className="flex cursor-pointer gap-3 rounded-2xl border-[1.5px] border-line p-4 text-sm has-[:checked]:border-basil has-[:checked]:bg-basil-soft">
+                <input type="radio" name="upiIdType" value="BUSINESS" defaultChecked={s.upiIdType === "BUSINESS"} className="mt-0.5 h-5 w-5 accent-[#1f6b3a]" />
+                <span><b className="block">Business / merchant UPI ID</b>From Google Pay for Business, PhonePe/Paytm for Business or your bank's merchant QR. The amount fills in automatically.</span>
+              </label>
+            </div>
+          </fieldset>
           <details className="mt-4 rounded-xl border border-line p-4">
             <summary className="cursor-pointer text-sm font-semibold">Razorpay payment methods (only used in Razorpay mode)</summary>
             <p className="mb-3 mt-2 text-sm text-ink-soft">

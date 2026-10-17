@@ -1,0 +1,1 @@
+ALTER TABLE "store_settings" ADD COLUMN "upi_id_type" text DEFAULT 'PERSONAL' NOT NULL;
