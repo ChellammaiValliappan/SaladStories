@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Check, Copy, QrCode, Smartphone } from "lucide-react";
+import { Check, Copy, Download, QrCode, Smartphone } from "lucide-react";
 import { formatINR } from "@/lib/money";
 
 /** Neutral payment icon (we don't reproduce Google's logo). */
@@ -25,6 +25,12 @@ type Props = {
   gpayIos: string;
   qrDataUrl: string;
   retry?: boolean;
+  /**
+   * Business/merchant UPI IDs accept a tap-to-pay link from the website.
+   * Personal UPI IDs don't (banks refuse it as "exceeded the bank limit"), so on
+   * phones the customer saves the QR and scans it from their gallery instead.
+   */
+  merchant?: boolean;
 };
 
 export function UpiPay(p: Props) {
@@ -86,7 +92,7 @@ export function UpiPay(p: Props) {
             Pay with Google Pay
           </h2>
 
-          {mobile && (
+          {mobile && p.merchant && (
             <a
               href={platform === "ios" ? p.gpayIos : p.gpayAndroid}
               className="btn btn-primary mt-3 h-14 w-full rounded-2xl text-base"
@@ -95,7 +101,27 @@ export function UpiPay(p: Props) {
             </a>
           )}
 
-          {(platform === "desktop" || showQr) && (
+          {mobile && !p.merchant && (
+            <div className="mt-3 rounded-2xl bg-crate p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.qrDataUrl} alt={`UPI QR code to pay ${rupees} to ${p.payeeName}`} width={220} height={220} className="mx-auto rounded-xl bg-white p-2" />
+              {platform === "ios" ? (
+                <p className="mt-3 text-center text-sm font-semibold">Press and hold the QR code → <b>Save to Photos</b> (or take a screenshot)</p>
+              ) : (
+                <a href={p.qrDataUrl} download={`salad-stories-${p.orderNumber}.png`} className="btn btn-primary mt-3 h-12 w-full rounded-2xl">
+                  <Download className="h-4 w-4" /> Save QR code to phone
+                </a>
+              )}
+              <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm">
+                <li>Open <b>Google Pay</b> → tap <b>Scan any QR code</b>.</li>
+                <li>Tap the <b>photo / gallery</b> icon and pick the QR code you just saved.</li>
+                <li>The amount <b>{rupees}</b> is filled in — check it and pay.</li>
+              </ol>
+              <p className="mt-2 text-xs text-ink-soft">Paying from another phone? Just scan the QR code above.</p>
+            </div>
+          )}
+
+          {(platform === "desktop" || (showQr && p.merchant)) && (
             <div className="mt-3 flex flex-col items-center gap-3 rounded-2xl bg-crate p-4 sm:flex-row sm:items-start">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.qrDataUrl} alt={`UPI QR code to pay ${rupees} to ${p.payeeName}`} width={200} height={200} className="rounded-xl bg-white p-2" />
@@ -106,7 +132,7 @@ export function UpiPay(p: Props) {
             </div>
           )}
 
-          {mobile && !showQr && (
+          {mobile && p.merchant && !showQr && (
             <button type="button" onClick={() => setShowQr(true)} className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-basil">
               <QrCode className="h-4 w-4" /> Paying from another phone? Show QR code
             </button>

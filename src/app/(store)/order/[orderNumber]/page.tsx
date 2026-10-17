@@ -59,6 +59,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
       gpayIos: gpayIosUri(pay),
       qrDataUrl: await QRCode.toDataURL(upiUri(pay), { margin: 1, width: 400, color: { dark: "#12452a", light: "#ffffff" } }),
       retry: order.paymentStatus === "FAILED",
+      merchant: settings.upiIdType === "BUSINESS" && !!settings.upiMerchantCode,
     };
   }
 
