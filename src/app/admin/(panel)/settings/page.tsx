@@ -88,6 +88,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <label className="label" htmlFor="upiQrText">Best: your Google Pay QR</label>
               <input id="upiQrText" name="upiQrText" className="field" placeholder="upi://pay?pa=…&pn=…" />
               <QrUpload targetId="upiQrText" />
+              <a href="/admin/upi-test" className="mt-2 inline-block text-sm font-semibold text-basil underline">Test which Google Pay links work →</a>
               <p className="mt-1 text-xs text-ink-soft">
                 In Google Pay tap your photo → <b>your QR code</b> → take a screenshot, then upload it here (or paste the QR text). Works for personal and business QRs.
                 {Object.keys(s.upiQrExtras ?? {}).length > 0 && " ✓ QR details saved."}
