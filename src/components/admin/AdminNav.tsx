@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserCog, BarChart3, CreditCard, ExternalLink, LayoutDashboard, LogOut, MessageSquareQuote, Package, Settings, Ticket, Truck, Users, UtensilsCrossed } from "lucide-react";
+import { ChefHat, UserCog, BarChart3, CreditCard, ExternalLink, LayoutDashboard, LogOut, MessageSquareQuote, Package, Settings, Ticket, Truck, Users, UtensilsCrossed } from "lucide-react";
 import { LogoMark } from "../Logo";
 
 const ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, staff: true },
   { href: "/admin/orders", label: "Orders", icon: Package, staff: true },
+  { href: "/admin/kitchen", label: "Kitchen sheet", icon: ChefHat, staff: true },
   { href: "/admin/products", label: "Menu", icon: UtensilsCrossed, staff: true },
   { href: "/admin/coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/delivery", label: "Delivery", icon: Truck },

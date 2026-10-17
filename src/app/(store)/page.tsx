@@ -5,6 +5,7 @@ import { Bike, Leaf, Salad, ShieldCheck, Sprout, Star } from "lucide-react";
 import { db, deliveryAreas, reviews } from "@/db";
 import { getMenu, toClientProduct } from "@/lib/menu";
 import { ProductCard } from "@/components/ProductCard";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,30 @@ export default async function HomePage() {
     db.select().from(reviews).where(eq(reviews.isPublished, true)).orderBy(desc(reviews.createdAt)).limit(6),
     db.select().from(deliveryAreas).where(eq(deliveryAreas.isActive, true)).orderBy(asc(deliveryAreas.sortOrder)),
   ]);
+  const settings = await getSettings();
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  // Helps Google show Salad Stories as a local food business (no ratings — only real data).
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Restaurant",
+    name: settings.businessName,
+    url: site || undefined,
+    image: site ? `${site}/icon-512.png` : undefined,
+    servesCuisine: ["Salads", "Healthy food"],
+    priceRange: "₹₹",
+    telephone: settings.phone || undefined,
+    email: settings.email || undefined,
+    address: { "@type": "PostalAddress", streetAddress: settings.address || undefined, addressLocality: "Chennai", addressRegion: "Tamil Nadu", addressCountry: "IN" },
+    areaServed: areas.map((a) => ({ "@type": "Place", name: `${a.name}, Chennai` })),
+    hasMenu: site ? `${site}/menu` : undefined,
+    sameAs: [settings.instagram, settings.facebook, settings.youtube].filter(Boolean),
+  };
   const featured = items.filter((p) => p.featured).map(toClientProduct);
   const shown = featured.length ? featured : items.map(toClientProduct);
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       {/* Hero */}
       <section className="relative overflow-hidden bg-crate">
         <div className="pointer-events-none absolute -right-20 -top-4 w-[21rem] sm:-right-20 sm:top-0 sm:w-[30rem] lg:right-[-4rem] lg:top-1/2 lg:w-[40rem] lg:-translate-y-1/2">

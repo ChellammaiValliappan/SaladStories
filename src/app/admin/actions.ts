@@ -494,3 +494,19 @@ export async function deleteCategory(form: FormData) {
   await db.delete(categories).where(eq(categories.id, str(form, "id")));
   done("/admin/products", "deleted");
 }
+
+// ---------- Kitchen ----------
+
+/** Moves every newly paid order in one slot to "Being prepared" (emails each customer). */
+export async function markSlotPreparing(form: FormData) {
+  await requireStaff();
+  const date = str(form, "date");
+  const slotId = str(form, "slotId");
+  const rows = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(and(eq(orders.deliveryDate, date), eq(orders.slotId, slotId), eq(orders.status, "PAID"), eq(orders.paymentStatus, "PAID")));
+  for (const r of rows) await setOrderStatus(r.id, "PREPARING", "Started from kitchen sheet");
+  revalidatePath("/admin", "layout");
+  redirect(`/admin/kitchen?date=${date}`);
+}

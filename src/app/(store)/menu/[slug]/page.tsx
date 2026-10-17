@@ -12,7 +12,13 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const p = await getProductBySlug((await params).slug);
-  return p ? { title: p.name, description: p.shortDescription } : {};
+  if (!p) return {};
+  return {
+    title: p.name,
+    description: p.shortDescription,
+    alternates: { canonical: `/menu/${p.slug}` },
+    openGraph: { title: p.name, description: p.shortDescription, images: p.image && !p.image.endsWith(".svg") ? [p.image] : ["/icon-512.png"] },
+  };
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {

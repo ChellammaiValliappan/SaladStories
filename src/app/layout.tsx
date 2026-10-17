@@ -9,7 +9,9 @@ export const metadata: Metadata = {
   description:
     "Order protein-focused salads, paneer bowls, egg salads and fresh fruit bowls in Taramani, Perungudi and Thoraipakkam, Chennai.",
   openGraph: { type: "website", siteName: "Salad Stories", images: ["/images/bowls/hero.svg"] },
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Salad Stories", statusBarStyle: "default" },
+  alternates: { canonical: "/" },
 };
 
 export const viewport: Viewport = {

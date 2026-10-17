@@ -122,8 +122,17 @@ Buy a domain → Netlify *Domain management → Add a domain* → follow the DNS
 | Pause all orders | Admin → Settings → Pause all orders |
 | Create an offer | Admin → Coupons |
 | Refund a customer | Admin → Orders → open order → Refund (admins only) |
+| See what to cook for each slot and print it | Admin → Kitchen sheet (staff can use it too) |
+| Start all new orders in a slot at once | Admin → Kitchen sheet → Start preparing all |
+| Download orders for accounts (Excel) | Admin → Reports → Download orders |
 
 The dashboard shows a **Before you launch** checklist that ticks itself off as you finish these steps.
+
+## Getting found on Google (free)
+
+1. https://search.google.com/search-console → add `https://saladstories.netlify.app` (or your domain) → verify with the HTML tag method (send me the tag and I'll add it) or via your domain's DNS.
+2. Submit the sitemap: `https://saladstories.netlify.app/sitemap.xml` (it updates itself when you add menu items).
+3. Create a free **Google Business Profile** for Salad Stories with the website link — this is what shows on Google Maps.
 
 ## Environment variables reference
 

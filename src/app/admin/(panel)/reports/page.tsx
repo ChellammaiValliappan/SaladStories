@@ -43,6 +43,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <div><label className="label" htmlFor="from">From</label><input id="from" name="from" type="date" defaultValue={from} className="field" /></div>
         <div><label className="label" htmlFor="to">To</label><input id="to" name="to" type="date" defaultValue={to} className="field" /></div>
         <button className="btn btn-primary">Show</button>
+        <a href={`/api/admin/orders-export?from=${from}&to=${to}`} className="btn btn-ghost">Download orders (Excel/CSV)</a>
       </form>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {tiles.map((t) => (

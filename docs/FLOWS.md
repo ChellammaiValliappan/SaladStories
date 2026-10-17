@@ -53,6 +53,9 @@ flowchart TD
 9. **Confirmation page** — "Thank you! Your order is confirmed", order number, slot, items, totals; email with a tracking link.
 10. **Tracking page** — Confirmed → Being prepared → Out for delivery → Delivered with times; "Questions? WhatsApp us"; *Order again*.
 
+### Install like an app
+On Android (Chrome) customers can tap **⋮ → Add to Home screen**, and on iPhone (Safari) **Share → Add to Home Screen**. The site then opens full-screen from a Salad Stories icon, straight to the menu.
+
 ### 2. Returning customer with an account
 - **Register / Sign in** (email + password) from the person icon. Guest cart items are merged into the account cart on sign-in, without duplicates.
 - **Checkout** shows saved addresses as one-tap chips; new addresses can be saved.
@@ -87,7 +90,7 @@ Sign in at **/admin**. There are two kinds of team accounts (Admin → Team):
 1. **Morning — Menu:** mark anything you can't make today as *Sold out* (one tap), or *Disable for now*.
 2. **Delivery:** check today's slots; add a holiday if closed (Delivery → Holidays and closed days).
 3. **During service — Orders → To prepare:** new paid orders arrive (also by email and Telegram/WhatsApp; the page refreshes every 30 seconds).
-4. Open an order → **Start preparing** → **Mark out for delivery** → **Mark delivered**. Each step emails the customer and updates their tracking page.
+4. Open **Kitchen sheet** for the slot: it totals what to make (e.g. "6× Paneer Bowl — Large, No onion") and lists each order for packing. Print it or keep it on a tablet; **Start preparing all** moves every new order in that slot along at once. Or open a single order → **Start preparing** → **Mark out for delivery** → **Mark delivered**. Each step emails the customer and updates their tracking page.
 5. Use **Call** / **WhatsApp** buttons on the order to reach the customer.
 6. **Problems:** *Cancel order* and/or **Refund** (full or partial) — refunds go through Razorpay automatically.
 
@@ -97,7 +100,7 @@ Sign in at **/admin**. There are two kinds of team accounts (Admin → Team):
 - **Delivery:** add/edit/disable areas and their PIN codes, per-area fee and minimum; slots with times, cut-off, capacity and weekdays; holidays; see requests from new areas (good signal for where to expand).
 - **Customers:** paying customers (guest and registered) with order count and spend; block abusive accounts.
 - **Payments:** every attempt with Razorpay IDs; link to the Razorpay dashboard.
-- **Reports:** orders, revenue, average order value, discounts, revenue by day, best sellers, sales by area, coupon usage — for any date range.
+- **Reports:** download all orders as an Excel-friendly CSV for any date range; orders, revenue, average order value, discounts, revenue by day, best sellers, sales by area, coupon usage — for any date range.
 - **Menu categories:** add, rename, reorder or delete (Admin → Menu, bottom of the page).
 - **Team:** add staff or admins with a temporary password, change access, reset passwords.
 - **Reviews:** add genuine reviews (with permission) and publish them on the home page.
