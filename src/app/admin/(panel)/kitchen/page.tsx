@@ -4,7 +4,7 @@ import { db, deliverySlots, orders } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { addDays, formatDateLong, formatTime, istParts } from "@/lib/time";
 import { addressLine, STATUS_LABELS } from "@/lib/notify";
-import { PageHead } from "@/components/admin/ui";
+import { KindTag, PageHead } from "@/components/admin/ui";
 import { PrintButton } from "@/components/admin/PrintButton";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { markSlotPreparing } from "../../actions";
@@ -117,7 +117,7 @@ export default async function KitchenPage({ searchParams }: { searchParams: Prom
                   {g.orders.map((o) => (
                     <li key={o.id} className="break-inside-avoid rounded-xl border border-line p-3 text-sm">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <Link href={`/admin/orders/${o.id}`} className="font-bold text-basil hover:underline print:text-ink">{o.orderNumber}</Link>
+                        <span><Link href={`/admin/orders/${o.id}`} className="font-bold text-basil hover:underline print:text-ink">{o.orderNumber}</Link><KindTag kind={o.kind} /></span>
                         <span className="text-xs font-semibold text-ink-soft">{STATUS_LABELS[o.status] ?? o.status}</span>
                       </div>
                       <p className="font-semibold">{o.customerName} · {o.phone}</p>

@@ -15,7 +15,11 @@ function authorised(req: Request) {
 export async function POST(req: Request, { params }: { params: Promise<{ job: string }> }) {
   if (!authorised(req)) return Response.json({ error: "Not allowed" }, { status: 401 });
   const { job } = await params;
-  if (job === "daily-summary") return Response.json(await sendDailySummary());
+  if (job === "daily-summary") {
+    const { activatePaidPlans } = await import("@/lib/plans");
+    const healed = await activatePaidPlans().catch(() => 0);
+    return Response.json({ ...(await sendDailySummary()), plansActivated: healed });
+  }
   if (job === "weekly-backup") return Response.json(await sendOrdersBackup());
   return Response.json({ error: "Unknown job" }, { status: 404 });
 }

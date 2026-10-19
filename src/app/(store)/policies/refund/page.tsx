@@ -16,6 +16,12 @@ export default function RefundPolicy() {
       <p>If something is missing, wrong or not up to standard, contact us within 2 hours of delivery with your order number and a photo. We'll replace the item or refund it.</p>
       <h2>How refunds are paid</h2>
       <p>Refunds go back to the account you paid from — for Google Pay / UPI payments we send the money back by UPI, usually within 2 working days; card or net-banking payments made through Razorpay usually take 5–7 working days, depending on your bank.</p>
+      <h2>Meal plans</h2>
+      <ul>
+        <li>You can change a day&apos;s bowl or skip a day until 9 pm the evening before, from My account → My plans.</li>
+        <li>Skipped days move to the end of your plan, so you don&apos;t lose any meals.</li>
+        <li>To stop a plan early, message us on WhatsApp with your plan number. We&apos;ll refund the days that haven&apos;t been prepared yet.</li>
+      </ul>
       <h2>Coupons</h2>
       <p>If an order that used a coupon is cancelled and refunded, the coupon may be restored at our discretion.</p>
     </ContentPage>

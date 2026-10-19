@@ -151,6 +151,8 @@ Buy a domain → Netlify *Domain management → Add a domain* → follow the DNS
 | I want to… | Where |
 |---|---|
 | Change a price, description or photo | Admin → Menu → Edit |
+| Change plan discounts / days, add a plan | Admin → Meal plans (bottom) |
+| Swap, skip or cancel a customer's plan day | Admin → Meal plans → open the plan |
 | Add or remove a bowl | Admin → Menu → Add a menu item / Delete |
 | Add nutrition info | Admin → Menu → Edit → Nutrition → tick "verified" |
 | Change customization (sizes, add-ons, extras) | Admin → Menu → Edit → Customization options |

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { Check, MessageCircle } from "lucide-react";
-import { db, orderEvents, orders } from "@/db";
+import { db, orderEvents, orders, subscriptions } from "@/db";
 import { getCurrentUser, isTeam } from "@/lib/auth";
 import { formatINR } from "@/lib/money";
 import { STATUS_LABELS, addressLine } from "@/lib/notify";
@@ -33,7 +33,12 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
     db.select().from(orderEvents).where(eq(orderEvents.orderId, order.id)).orderBy(asc(orderEvents.createdAt)),
     getSettings(),
   ]);
-  const paid = order.paymentStatus === "PAID";
+  const isPlan = order.kind === "PLAN";
+  const isPlanDay = order.kind === "PLAN_DAY";
+  const paid = order.paymentStatus === "PAID" || isPlanDay;
+  const plan = order.subscriptionId
+    ? (await db.select({ number: subscriptions.number, name: subscriptions.planName }).from(subscriptions).where(eq(subscriptions.id, order.subscriptionId)))[0]
+    : undefined;
   const step = FLOW.indexOf(order.status);
   const wa = whatsappLink(settings.whatsapp, `Hi! I have a question about my order ${order.orderNumber}.`);
   const reached = (s: string) => events.find((e) => e.status === s);
@@ -73,9 +78,17 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
         {paid ? (
           <>
             <span className="grid h-12 w-12 place-items-center rounded-full bg-sprout text-basil-deep"><Check className="h-7 w-7" strokeWidth={3} /></span>
-            <h1 className="mt-4 text-4xl font-[800] sm:text-5xl">{isNew ? "Thank you! Your order is confirmed." : STATUS_LABELS[order.status]}</h1>
-            <p className="mt-2 text-white/80">Order {order.orderNumber} · {order.slotLabel}</p>
-            {isNew && <p className="mt-2 text-white/80">We've emailed a confirmation to {order.email}.</p>}
+            <h1 className="mt-4 text-4xl font-[800] sm:text-5xl">
+              {isPlan ? "Your plan is active!" : isNew ? "Thank you! Your order is confirmed." : STATUS_LABELS[order.status]}
+            </h1>
+            <p className="mt-2 text-white/80">
+              {isPlan ? `${plan?.name ?? ""} plan ${plan?.number ?? ""} · ${order.slotLabel}` : `Order ${order.orderNumber} · ${order.slotLabel}`}
+            </p>
+            {isPlanDay && plan && <p className="mt-2 text-white/80">Part of your {plan.name.toLowerCase()} plan {plan.number}.</p>}
+            {(isNew || isPlan) && <p className="mt-2 text-white/80">We&apos;ve emailed a confirmation to {order.email}.</p>}
+            {(isPlan || isPlanDay) && plan && (
+              <Link href={`/account/plans/${plan.number}`} className="btn btn-sprout mt-4">Swap bowls or skip days</Link>
+            )}
           </>
         ) : order.status === "CANCELLED" ? (
           <h1 className="text-4xl font-[800]">This order was cancelled</h1>
@@ -95,13 +108,13 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
                 ? "No money was taken for this order. You can go back to checkout and try again."
                 : "This usually takes a few seconds. This page updates on its own."}
             </p>
-            {order.paymentStatus === "FAILED" && <Link href="/checkout" className="btn btn-primary mt-4">Try again</Link>}
+            {order.paymentStatus === "FAILED" && <Link href={isPlan ? "/plans" : "/checkout"} className="btn btn-primary mt-4">Try again</Link>}
           </>
         )}
       </div>
       )}
 
-      {paid && order.status !== "CANCELLED" && (
+      {paid && !isPlan && order.status !== "CANCELLED" && (
         <ol className="mt-8 space-y-0" aria-label="Order progress">
           {FLOW.map((s, i) => {
             const done = i <= step;
@@ -137,6 +150,9 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
             </li>
           ))}
         </ul>
+        {isPlanDay ? (
+          <p className="mt-3 border-t border-line pt-3 text-sm font-semibold text-basil">Paid with your plan{plan ? ` ${plan.number}` : ""}.</p>
+        ) : (
         <dl className="mt-3 space-y-1.5 border-t border-line pt-3 text-sm">
           <Row k="Subtotal" v={formatINR(order.subtotal)} />
           {order.discount > 0 && <Row k={`Discount${order.couponCode ? ` (${order.couponCode})` : ""}`} v={`−${formatINR(order.discount)}`} />}
@@ -145,6 +161,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           <div className="flex justify-between pt-1 text-base font-bold"><dt>Total</dt><dd>{formatINR(order.total)}</dd></div>
           <Row k="Payment" v={paid ? `Paid${order.paymentMethod ? ` (${order.paymentMethod})` : ""}` : verifying ? "Being checked" : order.paymentStatus === "FAILED" ? "Not received" : "Pending"} />
         </dl>
+        )}
         <div className="mt-4 rounded-2xl bg-crate p-4 text-sm">
           <p className="font-semibold">Delivering to {order.customerName}</p>
           <p className="text-ink-soft">{addressLine(order.address)}</p>
@@ -156,7 +173,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
         {wa && (
           <a href={wa} target="_blank" rel="noopener" className="btn btn-ghost"><MessageCircle className="h-4 w-4" /> Questions? WhatsApp us</a>
         )}
-        <ReorderButton items={order.items.map((i) => ({ productId: i.productId, quantity: i.quantity, selections: i.selections }))} />
+        {!isPlan && <ReorderButton items={order.items.map((i) => ({ productId: i.productId, quantity: i.quantity, selections: i.selections }))} />}
       </div>
     </div>
   );

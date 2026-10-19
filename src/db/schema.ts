@@ -267,7 +267,11 @@ export const orders = pgTable(
     // PENDING_PAYMENT | PAID | PREPARING | OUT_FOR_DELIVERY | DELIVERED | CANCELLED
     status: text("status").notNull().default("PENDING_PAYMENT"),
     // CREATED | VERIFYING (customer says they paid by UPI) | PAID | FAILED | REFUNDED
+    // | PLAN (a plan day — already paid for by the plan's payment order)
     paymentStatus: text("payment_status").notNull().default("CREATED"),
+    // ORDER (normal) | PLAN (payment for a subscription plan) | PLAN_DAY (one delivery of a plan)
+    kind: text("kind").notNull().default("ORDER"),
+    subscriptionId: text("subscription_id"),
     upiRef: text("upi_ref"), // UPI transaction ID (UTR) the customer entered
     paymentMethod: text("payment_method"),
     razorpayOrderId: text("razorpay_order_id").unique(),
@@ -345,6 +349,82 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   createdAt: createdAt(),
 });
 
+/** Subscription plans customers can buy (editable in Admin → Plans). */
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: id(),
+  code: text("code").notNull().unique(), // TRIAL | WEEKLY | MONTHLY | CUSTOM | …
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  days: integer("days"), // fixed number of delivery days; null = customer picks the dates
+  minDays: integer("min_days").notNull().default(2),
+  maxDays: integer("max_days").notNull().default(30),
+  discountPercent: integer("discount_percent").notNull().default(0),
+  deliveryFeePerDay: integer("delivery_fee_per_day").notNull().default(0), // paise
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
+/** One customer's plan. Paid through a normal order (kind PLAN); each day becomes a kitchen order (kind PLAN_DAY). */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: id(),
+    number: text("number").notNull().unique(),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    planId: text("plan_id").references(() => subscriptionPlans.id, { onDelete: "set null" }),
+    planCode: text("plan_code").notNull(),
+    planName: text("plan_name").notNull(),
+    // PENDING_PAYMENT | ACTIVE | COMPLETED | CANCELLED
+    status: text("status").notNull().default("PENDING_PAYMENT"),
+    paymentOrderId: text("payment_order_id"),
+    customerName: text("customer_name").notNull(),
+    phone: text("phone").notNull(),
+    email: text("email").notNull(),
+    address: jsonb("address").$type<AddressData>().notNull(),
+    pincode: text("pincode").notNull(),
+    areaId: text("area_id").references(() => deliveryAreas.id, { onDelete: "set null" }),
+    slotId: text("slot_id").references(() => deliverySlots.id, { onDelete: "set null" }),
+    slotName: text("slot_name").notNull(),
+    quantity: integer("quantity").notNull().default(1), // bowls per day
+    large: boolean("large").notNull().default(false),
+    notes: text("notes").notNull().default(""),
+    discountPercent: integer("discount_percent").notNull().default(0),
+    subtotal: integer("subtotal").notNull(),
+    discount: integer("discount").notNull().default(0),
+    deliveryFee: integer("delivery_fee").notNull().default(0),
+    tax: integer("tax").notNull().default(0),
+    total: integer("total").notNull(),
+    daysTotal: integer("days_total").notNull(),
+    startDate: text("start_date").notNull(),
+    endDate: text("end_date").notNull(),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("subscriptions_user_idx").on(t.userId), index("subscriptions_status_idx").on(t.status)],
+);
+
+/** The bowl chosen for each delivery day of a plan. */
+export const subscriptionDays = pgTable(
+  "subscription_days",
+  {
+    id: id(),
+    subscriptionId: text("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
+    date: text("date").notNull(), // YYYY-MM-DD
+    productId: text("product_id").references(() => products.id, { onDelete: "set null" }),
+    productName: text("product_name").notNull(),
+    selections: jsonb("selections").$type<Selections>().notNull().default({}),
+    /** Price of the bowl paid for this day — the customer can swap to any bowl up to this price. */
+    unitPrice: integer("unit_price").notNull(),
+    // SCHEDULED | SKIPPED
+    status: text("status").notNull().default("SCHEDULED"),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("subscription_days_sub_date_idx").on(t.subscriptionId, t.date)],
+);
+
 export const productRelations = relations(products, ({ many, one }) => ({
   optionGroups: many(optionGroups),
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
@@ -355,6 +435,14 @@ export const optionGroupRelations = relations(optionGroups, ({ many, one }) => (
 }));
 export const optionChoiceRelations = relations(optionChoices, ({ one }) => ({
   group: one(optionGroups, { fields: [optionChoices.groupId], references: [optionGroups.id] }),
+}));
+export const subscriptionRelations = relations(subscriptions, ({ many, one }) => ({
+  days: many(subscriptionDays),
+  plan: one(subscriptionPlans, { fields: [subscriptions.planId], references: [subscriptionPlans.id] }),
+}));
+export const subscriptionDayRelations = relations(subscriptionDays, ({ one }) => ({
+  subscription: one(subscriptions, { fields: [subscriptionDays.subscriptionId], references: [subscriptions.id] }),
+  order: one(orders, { fields: [subscriptionDays.orderId], references: [orders.id] }),
 }));
 export const orderRelations = relations(orders, ({ many, one }) => ({
   items: many(orderItems),

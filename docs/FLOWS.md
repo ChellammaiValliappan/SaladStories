@@ -62,6 +62,14 @@ On Android (Chrome) customers can tap **⋮ → Add to Home screen**, and on iPh
 - **My account** — orders with live status, *Offers you can use*, profile, saved addresses (add, edit, delete, make default), change password.
 - **Order again** re-adds a past order at today's prices, skipping anything unavailable.
 
+### Meal plans (Trial · Weekly · Monthly · Pick your days)
+1. **Meal plans** (top menu, homepage band or `/plans`) → pick a plan → sign in (plans need an account so customers can manage their days).
+2. Choose a **delivery time** and **start date** (or tap exact dates for *Pick your days*), bowls per day and Large portions.
+3. Choose a **bowl for each day** — *Mix it up*, *All [bowl]*, or day by day. The price updates live from the server (plan discount, delivery, tax).
+4. Address + kitchen note → accept the policy → **Pay with Google Pay** (same pay page and UTR check as normal orders).
+5. Once the owner confirms the payment, the plan is **active**: every day becomes its own kitchen order (tagged *Plan*), paid by the plan.
+6. **My account → My plans**: swap a day's bowl (to any bowl up to that day's price) or **skip** a day until **9 pm the evening before**. A skipped day moves to the end of the plan.
+
 ### 3. When something goes wrong
 
 | Situation | What the customer sees |
@@ -94,6 +102,12 @@ Sign in at **/admin**. There are two kinds of team accounts (Admin → Team):
 4. Open **Kitchen sheet** for the slot: it totals what to make (e.g. "6× Paneer Bowl — Large, No onion") and lists each order for packing. Print it or keep it on a tablet; **Start preparing all** moves every new order in that slot along at once. Or open a single order → **Start preparing** → **Mark out for delivery** → **Mark delivered**. Each step emails the customer and updates their tracking page.
 5. Use **Call** / **WhatsApp** buttons on the order to reach the customer.
 6. **Problems:** *Cancel order* and/or **Refund** (full or partial) — refunds go through Razorpay automatically.
+
+### Meal plans
+- **Admin → Meal plans**: current plans, days left, plan bowls tomorrow; open a plan to swap/skip any day (no cut-off for the team) or cancel it (refunds by hand).
+- Plan days appear on the **Kitchen sheet** and **Orders** with a *Plan* tag and move through Preparing → Out for delivery → Delivered like any order.
+- Sales count the plan **once** (its payment order); plan days show ₹0/"Plan" so nothing is double counted.
+- Edit plan names, days, discount %, delivery fee per day, or add a new plan (e.g. "Fortnight · 12 days") at the bottom of Admin → Meal plans. Changes affect new plans only.
 
 ### Weekly / occasional
 - **Menu → Add a menu item / Edit:** name, description, price, discount price, veg/non-veg/egg, ingredients, allergens, portion, verified nutrition, photo upload, card colour, daily limit, max per order, featured, status (Draft / Published / Unavailable) and **customization options** (choose-one, choose-several, yes/no, quantity, add-on, leave-out) with extra prices, defaults, min/max.

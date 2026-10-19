@@ -3,7 +3,7 @@ import { and, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm"
 import { db, orders } from "@/db";
 import { formatINR } from "@/lib/money";
 import { istParts } from "@/lib/time";
-import { Badge, Empty, PageHead, Table, orderBadge } from "@/components/admin/ui";
+import { Badge, Empty, PageHead, Table, orderBadge, KindTag, orderAmount } from "@/components/admin/ui";
 import { AutoRefresh } from "@/components/AutoRefresh";
 
 export const metadata = { title: "Orders" };
@@ -22,7 +22,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const { status = "open", q = "" } = await searchParams;
   const [{ n: toVerify }] = await db.select({ n: count() }).from(orders).where(and(eq(orders.paymentStatus, "VERIFYING"), eq(orders.status, "PENDING_PAYMENT")));
   const f = FILTERS.find((x) => x.id === status) ?? FILTERS[1];
-  const conds: (SQL | undefined)[] = [f.id === "today" ? and(eq(orders.deliveryDate, istParts().dateStr), eq(orders.paymentStatus, "PAID")) : f.where];
+  const conds: (SQL | undefined)[] = [f.id === "today" ? and(eq(orders.deliveryDate, istParts().dateStr), inArray(orders.paymentStatus, ["PAID", "PLAN"])) : f.where];
   if (q.trim()) {
     const like = `%${q.trim()}%`;
     conds.push(or(ilike(orders.orderNumber, like), ilike(orders.customerName, like), ilike(orders.phone, like), ilike(orders.email, like)));
@@ -54,10 +54,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
             <li key={o.id}>
               <Link href={`/admin/orders/${o.id}`} className="block rounded-2xl border border-line bg-white p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-bold text-basil">{o.orderNumber}</p>
+                  <p className="font-bold text-basil">{o.orderNumber}<KindTag kind={o.kind} /></p>
                   <Badge value={orderBadge(o)} />
                 </div>
-                <p className="mt-1 font-semibold">{o.customerName} · {formatINR(o.total)}</p>
+                <p className="mt-1 font-semibold">{o.customerName} · {orderAmount(o, formatINR)}</p>
                 <p className="text-sm text-ink-soft">{o.slotLabel}</p>
                 <p className="text-sm text-ink-soft">{o.address.area} {o.pincode}</p>
               </Link>
@@ -68,10 +68,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <Table head={["Order", "Customer", "Delivery", "Total", "Status"]}>
           {rows.map((o) => (
             <tr key={o.id} className="hover:bg-paper">
-              <td className="px-4 py-3 font-bold"><Link href={`/admin/orders/${o.id}`} className="text-basil hover:underline">{o.orderNumber}</Link></td>
+              <td className="px-4 py-3 font-bold"><Link href={`/admin/orders/${o.id}`} className="text-basil hover:underline">{o.orderNumber}</Link><KindTag kind={o.kind} /></td>
               <td className="px-4 py-3">{o.customerName}<br /><span className="text-ink-soft">{o.phone}</span></td>
               <td className="px-4 py-3">{o.slotLabel}<br /><span className="text-ink-soft">{o.address.area} {o.pincode}</span></td>
-              <td className="px-4 py-3 font-semibold">{formatINR(o.total)}</td>
+              <td className="px-4 py-3 font-semibold">{orderAmount(o, formatINR)}</td>
               <td className="px-4 py-3"><Badge value={orderBadge(o)} /></td>
             </tr>
           ))}

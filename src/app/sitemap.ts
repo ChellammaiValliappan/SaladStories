@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const site = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const pages = ["", "/menu", "/about", "/contact", "/faq", "/policies/delivery", "/policies/refund", "/policies/privacy", "/policies/terms"];
+  const pages = ["", "/menu", "/plans", "/about", "/contact", "/faq", "/policies/delivery", "/policies/refund", "/policies/privacy", "/policies/terms"];
   let items: { slug: string; updatedAt: Date }[] = [];
   try {
     items = await db.select({ slug: products.slug, updatedAt: products.updatedAt }).from(products).where(eq(products.status, "PUBLISHED"));

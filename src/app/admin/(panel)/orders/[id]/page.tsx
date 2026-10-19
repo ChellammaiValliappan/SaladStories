@@ -25,7 +25,8 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
   if (!order) notFound();
   const me = await getCurrentUser();
   const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, id)).orderBy(asc(orderEvents.createdAt));
-  const next = order.paymentStatus === "PAID" ? NEXT[order.status] : undefined;
+  const fulfilable = order.paymentStatus === "PAID" || order.paymentStatus === "PLAN";
+  const next = fulfilable ? NEXT[order.status] : undefined;
   const wa = whatsappLink(
     order.phone.length === 10 ? `91${order.phone}` : order.phone,
     `Hi ${order.customerName.split(" ")[0]}, this is Salad Stories about your order ${order.orderNumber}.`,
@@ -36,6 +37,12 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
       <PageHead title={`Order ${order.orderNumber}`} back={{ href: "/admin/orders", label: "Orders" }}>
         <Badge value={orderBadge(order)} />
       </PageHead>
+      {order.subscriptionId && (
+        <Link href={`/admin/plans/${order.subscriptionId}`} className="mb-5 flex items-center justify-between gap-3 rounded-2xl border-2 border-mango bg-white p-4 font-semibold">
+          <span>{order.kind === "PLAN" ? "Payment for a meal plan — the bowls are separate daily orders." : "One day of a meal plan (already paid)."}</span>
+          <span className="shrink-0 text-basil">Open plan →</span>
+        </Link>
+      )}
       <Flash msg={sp.msg} err={sp.err} />
       {order.paymentStatus === "VERIFYING" && order.status !== "CANCELLED" && (
         <section className="mb-6 rounded-2xl border-2 border-carrot bg-white p-5">
@@ -109,7 +116,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
               </form>
             ) : (
               <p className="text-sm text-ink-soft">
-                {order.paymentStatus !== "PAID" ? "This order hasn't been paid, so it can't be prepared yet." : "Nothing more to do for this order."}
+                {order.kind === "PLAN" ? "This is a plan payment — its daily bowls appear as separate orders." : !fulfilable ? "This order hasn't been paid, so it can't be prepared yet." : "Nothing more to do for this order."}
               </p>
             )}
             {order.status !== "CANCELLED" && order.status !== "DELIVERED" && (

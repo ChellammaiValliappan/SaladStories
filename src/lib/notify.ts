@@ -23,6 +23,7 @@ type OrderForNotify = {
   status: string;
   id?: string;
   upiRef?: string | null;
+  kind?: string;
   items: { name: string; quantity: number; summary: string; lineTotal: number }[];
 };
 
@@ -36,6 +37,7 @@ export const STATUS_LABELS: Record<string, string> = {
   PAYMENT_FAILED: "Payment failed",
   PAYMENT_SUBMITTED: "Payment reported",
   ALERT_FAILED: "WhatsApp alert not delivered",
+  PLAN_ACTIVE: "Plan active",
   REFUNDED: "Refunded",
 };
 
@@ -234,17 +236,19 @@ const orderLink = (o: OrderForNotify) => (o.id ? `${siteUrl()}/admin/orders/${o.
  * no customer details. Phone notifications come from the site itself. If WhatsApp
  * fails, the order is flagged in the admin so nothing is missed.
  */
-async function alertOwner(o: OrderForNotify, kind: "order" | "payment") {
+async function alertOwner(o: OrderForNotify, kind: "order" | "plan" | "payment") {
   const amount = formatINR(o.total);
   const short =
     kind === "order"
       ? `🥗 New order ${o.orderNumber} · ${amount} · ${o.slotLabel}\nOpen: ${orderLink(o)}`
-      : `💰 Payment to check: ${o.orderNumber} · ${amount}\nOpen: ${orderLink(o)}`;
+      : kind === "plan"
+        ? `🗓 New plan ${o.orderNumber} · ${amount} · ${o.items[0]?.name ?? "Plan"}\nOpen: ${orderLink(o)}`
+        : `💰 Payment to check: ${o.orderNumber} · ${amount}\nOpen: ${orderLink(o)}`;
   const [whatsapp] = await Promise.all([
     sendOwnerWhatsApp(short),
     pushToTeam({
-      title: kind === "order" ? `New order · ${amount}` : `Payment to check · ${amount}`,
-      body: `${o.orderNumber} · ${o.slotLabel}${kind === "payment" ? " · tap to confirm" : ""}`,
+      title: kind === "order" ? `New order · ${amount}` : kind === "plan" ? `New plan · ${amount}` : `Payment to check · ${amount}`,
+      body: kind === "plan" ? `${o.orderNumber} · ${o.items[0]?.name ?? "Plan"}` : `${o.orderNumber} · ${o.slotLabel}${kind === "payment" ? " · tap to confirm" : ""}`,
       url: o.id ? `/admin/orders/${o.id}` : "/admin/orders",
       tag: `${kind}-${o.orderNumber}`,
     }).catch((err) => {
@@ -265,7 +269,8 @@ async function alertOwner(o: OrderForNotify, kind: "order" | "payment") {
 export async function notifyNewOrder(o: OrderForNotify) {
   const settings = await getSettings();
   const ownerEmail = process.env.OWNER_EMAIL || settings.email;
-  const summary = `🥗 New paid order ${o.orderNumber}
+  const isPlan = o.kind === "PLAN";
+  const summary = `${isPlan ? "🗓 New plan" : "🥗 New paid order"} ${o.orderNumber}
 ${o.customerName} · ${o.phone}
 ${o.slotLabel}
 ${addressLine(o.address)}
@@ -277,18 +282,25 @@ Total: ${formatINR(o.total)}${o.couponCode ? ` (coupon ${o.couponCode})` : ""}`;
   await Promise.all([
     sendEmail(
       ownerEmail,
-      `New order ${o.orderNumber} — ${formatINR(o.total)}`,
+      `${isPlan ? "New plan" : "New order"} ${o.orderNumber} — ${formatINR(o.total)}`,
       summary,
-      emailHtml("New paid order", esc(`${o.customerName} (${o.phone}, ${o.email})`), o),
+      emailHtml(isPlan ? "New plan bought" : "New paid order", esc(`${o.customerName} (${o.phone}, ${o.email})`), o),
     ),
-    alertOwner(o, "order"),
+    alertOwner(o, isPlan ? "plan" : "order"),
     sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, `${summary}\n\nOpen: ${orderLink(o)}`),
-    sendEmail(
-      o.email,
-      `Your Salad Stories order ${o.orderNumber} is confirmed`,
-      `Hi ${o.customerName}, thanks for your order!\n\n${itemsText(o)}\n\nTotal paid: ${formatINR(o.total)}\nDelivery: ${o.slotLabel}\nTrack it: ${trackingUrl(o)}`,
-      emailHtml(`Thanks, ${o.customerName.split(" ")[0]}!`, "Your payment is confirmed and our kitchen has your order.", o),
-    ),
+    isPlan
+      ? sendEmail(
+          o.email,
+          "Your Salad Stories plan is confirmed",
+          `Hi ${o.customerName}, your plan is active!\n\n${itemsText(o)}\n\nTotal paid: ${formatINR(o.total)}\n${o.slotLabel}\n\nSwap a bowl or skip a day (until 9 pm the evening before): ${siteUrl()}/account/plans`,
+          emailHtml(`Your plan is on, ${o.customerName.split(" ")[0]}!`, `Your payment is confirmed. You can swap a bowl or skip a day until 9 pm the evening before at <a href="${siteUrl()}/account/plans">${siteUrl()}/account/plans</a>.`, o),
+        )
+      : sendEmail(
+          o.email,
+          `Your Salad Stories order ${o.orderNumber} is confirmed`,
+          `Hi ${o.customerName}, thanks for your order!\n\n${itemsText(o)}\n\nTotal paid: ${formatINR(o.total)}\nDelivery: ${o.slotLabel}\nTrack it: ${trackingUrl(o)}`,
+          emailHtml(`Thanks, ${o.customerName.split(" ")[0]}!`, "Your payment is confirmed and our kitchen has your order.", o),
+        ),
   ]);
 }
 

@@ -40,14 +40,23 @@ const TONES: Record<string, string> = {
   DRAFT: "bg-crate text-ink-soft",
   UNAVAILABLE: "bg-tomato/15 text-tomato",
   ACTIVE: "bg-basil-soft text-basil-deep",
+  PLAN_ACTIVE: "bg-sprout/40 text-basil-deep",
+  COMPLETED: "bg-crate text-ink-soft",
   INACTIVE: "bg-crate text-ink-soft",
 };
-const LABELS: Record<string, string> = { PENDING_PAYMENT: "Awaiting payment", OUT_FOR_DELIVERY: "Out for delivery", VERIFYING: "Check payment" };
+const LABELS: Record<string, string> = { PENDING_PAYMENT: "Awaiting payment", OUT_FOR_DELIVERY: "Out for delivery", VERIFYING: "Check payment", PLAN_ACTIVE: "Plan active" };
+
+/** Small tag for plan payments and plan days. */
+export function KindTag({ kind }: { kind?: string | null }) {
+  if (kind !== "PLAN" && kind !== "PLAN_DAY") return null;
+  return <span className="ml-1.5 inline-block rounded-full bg-mango/40 px-2 py-0.5 align-middle text-[11px] font-bold text-[#6b4700]">{kind === "PLAN" ? "Plan payment" : "Plan"}</span>;
+}
+export const orderAmount = (o: { kind?: string | null; total: number }, fmt: (p: number) => string) => (o.kind === "PLAN_DAY" ? "Plan" : fmt(o.total));
 
 /** One badge value for an order, combining payment and kitchen status. */
 export function orderBadge(o: { status: string; paymentStatus: string }) {
   if (o.status === "CANCELLED") return "CANCELLED";
-  if (o.paymentStatus === "PAID") return o.status;
+  if (o.paymentStatus === "PAID" || o.paymentStatus === "PLAN") return o.status;
   if (o.paymentStatus === "VERIFYING") return "VERIFYING";
   if (o.paymentStatus === "FAILED") return "FAILED";
   return "PENDING_PAYMENT";

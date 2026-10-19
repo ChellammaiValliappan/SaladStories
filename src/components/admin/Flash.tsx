@@ -5,6 +5,8 @@ const MESSAGES: Record<string, string> = {
   refunded: "Refund recorded.",
   upiConfirmed: "Payment confirmed. The order is now in the kitchen queue and the customer has been emailed.",
   upiRejected: "Marked as not received. The customer has been emailed and can pay again.",
+  planSkipped: "Day skipped — it moved to the end of the plan.",
+  planCancelled: "Plan cancelled. Its future days were removed from the kitchen sheet. Refund any unused days by hand (Google Pay / bank) if you've agreed to.",
   telegramConnected: "Telegram connected — check your phone for a hello message.",
   sent_wte: "Sent to your WhatsApp, Telegram and email.",
   sent_wt: "Sent to your WhatsApp and Telegram.",

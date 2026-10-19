@@ -11,6 +11,7 @@ import { cartCount, useCart } from "@/lib/cart-store";
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/menu", label: "Menu" },
+  { href: "/plans", label: "Meal plans" },
   { href: "/about", label: "About us" },
   { href: "/contact", label: "Contact us" },
 ];

@@ -1,7 +1,7 @@
 import "server-only";
 import crypto from "crypto";
 import { z } from "zod";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, eq, inArray, ne, sql } from "drizzle-orm";
 import { addresses, couponRedemptions, coupons, db, orderEvents, orderItems, orders } from "@/db";
 import { customerKeyOf, liveRedemptions, quoteCart, cartItemSchema } from "./pricing";
 import { checkSlotBookable, PENDING_HOLD_MINUTES, PINCODE_RE } from "./delivery";
@@ -47,14 +47,14 @@ export class CheckoutError extends Error {}
 
 type OrderRow = typeof orders.$inferSelect;
 
-function newOrderNumber() {
+export function newOrderNumber() {
   const { dateStr } = istParts();
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const rand = Array.from(crypto.randomBytes(5), (b) => alphabet[b % alphabet.length]).join("");
   return `SS${dateStr.slice(2).replace(/-/g, "")}-${rand}`;
 }
 
-type PayOpts = { hide?: string[]; upi?: boolean };
+export type PayOpts = { hide?: string[]; upi?: boolean };
 
 export function paymentPayload(order: OrderRow, opts: PayOpts = {}) {
   const hide = opts.hide ?? [];
@@ -247,6 +247,20 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
     });
   }
 
+  return startPayment(order, pay, useUpi);
+}
+
+/** Payment settings for new orders (Google Pay/UPI or Razorpay). */
+export async function paymentMode() {
+  const settings = await getSettings();
+  const useUpi = settings.paymentMode === "UPI";
+  if (useUpi ? !UPI_ID_RE.test(settings.upiId) : !razorpayConfigured() && !simulatorEnabled())
+    throw new CheckoutError("Online payment isn't set up yet. Please contact us on WhatsApp to order.");
+  return { useUpi, pay: { hide: hiddenMethods(settings.paymentMethods), upi: useUpi } as PayOpts };
+}
+
+/** After an order row exists: ₹0 → paid at once; Razorpay → create its order; UPI → pay on the order page. */
+export async function startPayment(order: OrderRow, pay: PayOpts, useUpi: boolean): Promise<PaymentPayload> {
   // Fully discounted (₹0) orders need no payment.
   if (order.total === 0) {
     await markOrderPaid(order.id, { paymentId: null, method: "free" });
@@ -277,7 +291,8 @@ export async function markOrderPaid(orderId: string, info: { paymentId: string |
       .update(orders)
       .set({
         paymentStatus: "PAID",
-        status: "PAID",
+        // A plan's payment order isn't cooked itself — its daily orders are.
+        status: sql`case when ${orders.kind} = 'PLAN' then 'PLAN_ACTIVE' else 'PAID' end`,
         razorpayPaymentId: info.paymentId ?? undefined,
         paymentMethod: info.method ?? undefined,
         updatedAt: new Date(),
@@ -291,6 +306,10 @@ export async function markOrderPaid(orderId: string, info: { paymentId: string |
   });
   if (changed) {
     const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { items: true } });
+    if (order?.kind === "PLAN" && order.subscriptionId) {
+      const { activateSubscription } = await import("./plans");
+      await activateSubscription(order.subscriptionId);
+    }
     if (order) {
       await notifyNewOrder(order);
       await db.update(orders).set({ notifiedAt: new Date() }).where(eq(orders.id, orderId));

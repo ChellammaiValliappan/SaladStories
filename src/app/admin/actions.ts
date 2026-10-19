@@ -69,7 +69,7 @@ export async function updateOrderStatus(form: FormData) {
   if (!ORDER_STATUSES.includes(status as (typeof ORDER_STATUSES)[number])) oops(`/admin/orders/${id}`, "Invalid status");
   const [order] = await db.select().from(orders).where(eq(orders.id, id));
   if (!order) oops(`/admin/orders/${id}`, "Order not found");
-  if (order.paymentStatus !== "PAID" && status !== "CANCELLED") oops(`/admin/orders/${id}`, "Only paid orders can move forward.");
+  if (order.paymentStatus !== "PAID" && order.paymentStatus !== "PLAN" && status !== "CANCELLED") oops(`/admin/orders/${id}`, "Only paid orders can move forward.");
   await setOrderStatus(id, status, str(form, "note") || undefined);
   done(`/admin/orders/${id}`, "status");
 }
@@ -528,7 +528,7 @@ export async function markSlotPreparing(form: FormData) {
   const rows = await db
     .select({ id: orders.id })
     .from(orders)
-    .where(and(eq(orders.deliveryDate, date), eq(orders.slotId, slotId), eq(orders.status, "PAID"), eq(orders.paymentStatus, "PAID")));
+    .where(and(eq(orders.deliveryDate, date), eq(orders.slotId, slotId), eq(orders.status, "PAID"), inArray(orders.paymentStatus, ["PAID", "PLAN"])));
   for (const r of rows) await setOrderStatus(r.id, "PREPARING", "Started from kitchen sheet");
   revalidatePath("/admin", "layout");
   redirect(`/admin/kitchen?date=${date}`);
@@ -599,4 +599,82 @@ export async function sendBackupNow() {
   const r = await sendOrdersBackup();
   if (!r.telegram && !r.email) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first — or use “Download all orders”.");
   done("/admin/settings", sentCode(r.telegram, r.email, false));
+}
+
+// ---------- Meal plans ----------
+
+export async function savePlan(form: FormData) {
+  await requireAdmin();
+  const { subscriptionPlans } = await import("@/db");
+  const id = str(form, "id");
+  const name = str(form, "name");
+  if (name.length < 2) oops("/admin/plans", "Give the plan a name.");
+  const days = intOrNull(form, "days");
+  const minDays = intOrNull(form, "minDays") ?? 2;
+  const maxDays = intOrNull(form, "maxDays") ?? 30;
+  const discountPercent = intOrNull(form, "discountPercent") ?? 0;
+  if (days != null && (days < 1 || days > 60)) oops("/admin/plans", "Days must be between 1 and 60 (leave blank to let customers pick their dates).");
+  if (minDays < 1 || maxDays > 60 || minDays > maxDays) oops("/admin/plans", "Check the minimum and maximum days (1–60).");
+  if (discountPercent < 0 || discountPercent > 50) oops("/admin/plans", "Keep the discount between 0% and 50%.");
+  const data = {
+    name,
+    description: str(form, "description").slice(0, 200),
+    days,
+    minDays: days ?? minDays,
+    maxDays: days ?? maxDays,
+    discountPercent,
+    deliveryFeePerDay: paiseOrNull(form, "deliveryFeePerDay") ?? 0,
+    isActive: bool(form, "isActive"),
+    sortOrder: intOrNull(form, "sortOrder") ?? 0,
+  };
+  if (id) await db.update(subscriptionPlans).set(data).where(eq(subscriptionPlans.id, id));
+  else {
+    const code = slugify(name).replace(/-/g, "_").toUpperCase().slice(0, 20) || `PLAN_${Date.now()}`;
+    const [taken] = await db.select({ id: subscriptionPlans.id }).from(subscriptionPlans).where(eq(subscriptionPlans.code, code));
+    if (taken) oops("/admin/plans", "A plan with that name already exists.");
+    await db.insert(subscriptionPlans).values({ ...data, code });
+  }
+  done("/admin/plans");
+}
+
+async function teamActor() {
+  const me = await requireStaff();
+  return { userId: me.id, isTeam: true };
+}
+
+export async function adminSwapPlanDay(form: FormData) {
+  const actor = await teamActor();
+  const { changePlanDay } = await import("@/lib/plans");
+  const sid = str(form, "subscriptionId");
+  try {
+    await changePlanDay(sid, str(form, "dayId"), str(form, "productId"), actor);
+  } catch (e) {
+    oops(`/admin/plans/${sid}`, e instanceof Error ? e.message : "Couldn't change that day.");
+  }
+  done(`/admin/plans/${sid}`);
+}
+
+export async function adminSkipPlanDay(form: FormData) {
+  const actor = await teamActor();
+  const { skipPlanDay } = await import("@/lib/plans");
+  const sid = str(form, "subscriptionId");
+  try {
+    await skipPlanDay(sid, str(form, "dayId"), actor);
+  } catch (e) {
+    oops(`/admin/plans/${sid}`, e instanceof Error ? e.message : "Couldn't skip that day.");
+  }
+  done(`/admin/plans/${sid}`, "planSkipped");
+}
+
+export async function cancelPlan(form: FormData) {
+  await requireAdmin();
+  const { cancelSubscription } = await import("@/lib/plans");
+  const sid = str(form, "subscriptionId");
+  let value = 0;
+  try {
+    value = (await cancelSubscription(sid, str(form, "reason"))).value;
+  } catch (e) {
+    oops(`/admin/plans/${sid}`, e instanceof Error ? e.message : "Couldn't cancel the plan.");
+  }
+  redirect(`/admin/plans/${sid}?msg=planCancelled&value=${value}`);
 }
