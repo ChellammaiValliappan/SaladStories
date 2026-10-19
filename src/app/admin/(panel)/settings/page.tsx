@@ -171,12 +171,30 @@ function Step({ done, children }: { done: boolean; children: React.ReactNode }) 
 /** Order alerts (Telegram + email), nightly summary and weekly backup. */
 async function AlertsCard() {
   const [c, bot] = await Promise.all([alertChannels(), botUsername()]);
-  const ready = c.telegramChat || c.email;
+  const ready = c.telegramChat || c.email || (c.whatsappKey && !!c.whatsappNumber);
   return (
     <Card title="Order alerts & reports" className="mb-6">
       <p className="text-sm text-ink-soft">
         You get a message for every new order and every payment to check, a <b>sales summary every night at 10 pm</b>, and a <b>backup of all orders every Monday at 8 am</b> (a spreadsheet file).
       </p>
+
+      <div className="mt-4 rounded-xl bg-crate p-4">
+        <h3 className="font-bold">WhatsApp (free, to your own number)</h3>
+        {c.whatsappKey && c.whatsappNumber ? (
+          <p className="mt-2 text-sm">✓ Alerts go to WhatsApp <b>+{c.whatsappNumber}</b>.</p>
+        ) : (
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+            <li>
+              Open <a className="font-semibold text-basil underline" href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noreferrer">CallMeBot&apos;s WhatsApp page</a>, save their bot number in your contacts, and from <b>your</b> WhatsApp send it: <code>I allow callmebot to send me messages</code>
+            </li>
+            <li>It replies with an <b>API key</b>. Add it in Netlify → Environment variables as <code>CALLMEBOT_APIKEY</code>, then redeploy.</li>
+            <li>
+              Put your WhatsApp number (with 91) in <b>Contact details → WhatsApp number</b> below{c.whatsappNumber ? <> — currently <b>+{c.whatsappNumber}</b></> : null}.
+            </li>
+          </ol>
+        )}
+        <p className="mt-2 text-xs text-ink-soft">A free community service for personal alerts: messages can take a few seconds, and it may occasionally be slow — keep Telegram or email on as a backup.</p>
+      </div>
 
       <div className="mt-4 grid gap-5 md:grid-cols-2">
         <div>

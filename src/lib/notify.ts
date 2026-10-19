@@ -156,6 +156,34 @@ async function sendWhatsAppText(to: string, body: string) {
   }
 }
 
+/**
+ * Owner alerts on WhatsApp. Free route: CallMeBot (https://www.callmebot.com) sends
+ * text messages to your own number once you've sent it the activation message —
+ * set CALLMEBOT_APIKEY. Otherwise falls back to the paid Meta Cloud API if set up.
+ */
+export async function sendOwnerWhatsApp(text: string) {
+  const key = process.env.CALLMEBOT_APIKEY;
+  const settings = await getSettings();
+  const phone = (process.env.OWNER_WHATSAPP_NUMBER || settings.whatsapp).replace(/\D/g, "");
+  if (!phone) return false;
+  if (!key) {
+    if (!process.env.WHATSAPP_TOKEN) return false;
+    await sendWhatsAppText(phone, text);
+    return true;
+  }
+  try {
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent("+" + phone)}&text=${encodeURIComponent(text.slice(0, 1500))}&apikey=${encodeURIComponent(key)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const body = await res.text();
+    const ok = res.ok && !/error|invalid|not (allowed|activated)/i.test(body.slice(0, 500));
+    if (!ok) console.error("[whatsapp/callmebot failed]", res.status, body.slice(0, 300));
+    return ok;
+  } catch (err) {
+    console.error("[whatsapp/callmebot failed]", err);
+    return false;
+  }
+}
+
 // ---------------- Telegram (free) ----------------
 
 /** Returns true when Telegram accepted the message. */
@@ -199,7 +227,6 @@ export async function sendTelegramDocument(chatId: string, filename: string, con
 export async function notifyNewOrder(o: OrderForNotify) {
   const settings = await getSettings();
   const ownerEmail = process.env.OWNER_EMAIL || settings.email;
-  const ownerWa = process.env.OWNER_WHATSAPP_NUMBER || settings.whatsapp;
   const summary = `🥗 New paid order ${o.orderNumber}
 ${o.customerName} · ${o.phone}
 ${o.slotLabel}
@@ -216,7 +243,7 @@ Total: ${formatINR(o.total)}${o.couponCode ? ` (coupon ${o.couponCode})` : ""}`;
       summary,
       emailHtml("New paid order", esc(`${o.customerName} (${o.phone}, ${o.email})`), o),
     ),
-    sendWhatsAppText(ownerWa, summary),
+    sendOwnerWhatsApp(`${summary}\n\nOpen: ${siteUrl()}/admin/orders`),
     sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, `${summary}\n\nOpen: ${siteUrl()}/admin/orders`),
     sendEmail(
       o.email,
@@ -255,7 +282,7 @@ ${link}`;
     sendEmail(ownerEmail, `Check payment: ${o.orderNumber} — ${formatINR(o.total)}`, text,
       emailHtml("Payment to check", `${esc(o.customerName)} says they paid ${formatINR(o.total)} by UPI. Transaction ID: <b>${esc(o.upiRef ?? "—")}</b>. Check your Google Pay or bank app, then confirm it in the admin: <a href="${link}">${link}</a>`, o)),
     sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, text),
-    sendWhatsAppText(process.env.OWNER_WHATSAPP_NUMBER || settings.whatsapp, text),
+    sendOwnerWhatsApp(text),
     sendEmail(o.email, `We've got your order ${o.orderNumber} — confirming payment`,
       `Hi ${o.customerName}, thanks! We're checking your UPI payment (transaction ID ${o.upiRef ?? "—"}) and will confirm your order shortly.\nTrack it: ${trackingUrl(o)}`,
       emailHtml(`Thanks, ${o.customerName.split(" ")[0]}!`, "We're checking your Google Pay payment and will confirm your order shortly.", o)),

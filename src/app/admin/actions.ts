@@ -552,6 +552,8 @@ export async function rejectUpi(form: FormData) {
 
 // ---------- alerts & reports ----------
 
+const sentCode = (t: boolean, e: boolean, w: boolean) => `sent_${w ? "w" : ""}${t ? "t" : ""}${e ? "e" : ""}`;
+
 /** Finds the chat of whoever last messaged the bot (the owner), saves it and says hello. */
 export async function connectTelegram() {
   await requireAdmin();
@@ -575,20 +577,20 @@ export async function connectTelegram() {
 
 export async function sendTestAlert() {
   await requireAdmin();
-  const { ownerContacts, sendEmail, sendTelegram } = await import("@/lib/notify");
+  const { ownerContacts, sendEmail, sendOwnerWhatsApp, sendTelegram } = await import("@/lib/notify");
   const to = await ownerContacts();
   const text = "🔔 Test alert from Salad Stories. If you can read this, order alerts reach you here.";
-  const [tg, em] = await Promise.all([sendTelegram(to.chatId, text), sendEmail(to.email, "Test alert from Salad Stories", text, `<p>${text}</p>`)]);
-  if (!tg && !em) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first.");
-  done("/admin/settings", `sent_${tg ? "t" : ""}${em ? "e" : ""}`);
+  const [tg, em, wa] = await Promise.all([sendTelegram(to.chatId, text), sendEmail(to.email, "Test alert from Salad Stories", text, `<p>${text}</p>`), sendOwnerWhatsApp(text)]);
+  if (!tg && !em && !wa) oops("/admin/settings", "Nothing was sent. Set up WhatsApp, Telegram or email first.");
+  done("/admin/settings", sentCode(tg, em, wa));
 }
 
 export async function sendSummaryNow() {
   await requireAdmin();
   const { sendDailySummary } = await import("@/lib/reports");
   const r = await sendDailySummary();
-  if (!r.telegram && !r.email) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first.");
-  done("/admin/settings", `sent_${r.telegram ? "t" : ""}${r.email ? "e" : ""}`);
+  if (!r.telegram && !r.email && !r.whatsapp) oops("/admin/settings", "Nothing was sent. Set up WhatsApp, Telegram or email first.");
+  done("/admin/settings", sentCode(r.telegram, r.email, !!r.whatsapp));
 }
 
 export async function sendBackupNow() {
@@ -596,5 +598,5 @@ export async function sendBackupNow() {
   const { sendOrdersBackup } = await import("@/lib/reports");
   const r = await sendOrdersBackup();
   if (!r.telegram && !r.email) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first — or use “Download all orders”.");
-  done("/admin/settings", `sent_${r.telegram ? "t" : ""}${r.email ? "e" : ""}`);
+  done("/admin/settings", sentCode(r.telegram, r.email, false));
 }

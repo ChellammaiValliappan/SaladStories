@@ -117,7 +117,13 @@ Two Netlify scheduled functions (`netlify/functions/`) send to your Telegram and
 
 Buttons on the same card send either one immediately, and **Download all orders (CSV)** works any time. The jobs use `AUTH_SECRET` to call the site (or `CRON_SECRET` if you set one).
 
-*WhatsApp alerts are also supported (see `.env.example`), but Meta's WhatsApp Cloud API charges for business-initiated messages and needs a separate number, so Telegram is the free choice. Customers can still reach you on WhatsApp from the site — add your number in Settings.*
+### WhatsApp alerts to your own number (free, CallMeBot)
+
+1. Open https://www.callmebot.com/blog/free-api-whatsapp-messages/, save their bot number in your contacts and, from your WhatsApp, send it `I allow callmebot to send me messages`.
+2. Add the API key it replies with to Netlify as `CALLMEBOT_APIKEY` → trigger a deploy.
+3. Put your WhatsApp number (with 91) in **Admin → Settings → Contact details → WhatsApp number**.
+
+New orders, payments to check and the nightly summary now arrive on WhatsApp too. It's a free shared service, so keep Telegram or email on as a backup. (Meta's official WhatsApp Cloud API is also supported via `WHATSAPP_TOKEN`, but it charges per message.)
 
 ## Step 6 — Food photos (Cloudinary, free) · 5 minutes
 

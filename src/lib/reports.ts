@@ -2,7 +2,8 @@ import "server-only";
 import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, orders } from "@/db";
 import { formatINR } from "./money";
-import { addressLine, emailConfigured, ownerContacts, sendEmail, sendTelegram, sendTelegramDocument } from "./notify";
+import { addressLine, emailConfigured, ownerContacts, sendEmail, sendOwnerWhatsApp, sendTelegram, sendTelegramDocument } from "./notify";
+import { getSettings } from "./settings";
 import { addDays, formatDateLong, istParts } from "./time";
 
 const rupees = (p: number) => (p / 100).toFixed(2);
@@ -81,16 +82,17 @@ export async function dailySummaryText(date = istParts().dateStr) {
 const pre = (t: string) =>
   `<pre style="font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap">${t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</pre>`;
 
-export type SendResult = { telegram: boolean; email: boolean };
+export type SendResult = { telegram: boolean; email: boolean; whatsapp?: boolean };
 
 export async function sendDailySummary(date = istParts().dateStr): Promise<SendResult> {
   const text = await dailySummaryText(date);
   const to = await ownerContacts();
-  const [telegram, email] = await Promise.all([
+  const [telegram, email, whatsapp] = await Promise.all([
     sendTelegram(to.chatId, text),
     sendEmail(to.email, `Salad Stories daily summary — ${formatDateLong(date)}`, text, pre(text)),
+    sendOwnerWhatsApp(text),
   ]);
-  return { telegram, email };
+  return { telegram, email, whatsapp };
 }
 
 /** Every order ever placed, as a CSV file, to the owner's email and Telegram. */
@@ -113,7 +115,11 @@ export async function sendOrdersBackup(): Promise<SendResult & { count: number }
 /** What's set up, for the admin settings page. */
 export async function alertChannels() {
   const to = await ownerContacts();
+  const settings = await getSettings();
+  const waNumber = (process.env.OWNER_WHATSAPP_NUMBER || settings.whatsapp).replace(/\D/g, "");
   return {
+    whatsappKey: !!process.env.CALLMEBOT_APIKEY,
+    whatsappNumber: waNumber,
     telegramToken: !!process.env.TELEGRAM_BOT_TOKEN,
     telegramChat: !!to.chatId,
     email: emailConfigured() && !!to.email,
