@@ -1,5 +1,5 @@
 import { asc, inArray } from "drizzle-orm";
-import { db, users } from "@/db";
+import { db, pushSubscriptions, users } from "@/db";
 import { requireAdmin } from "@/lib/auth";
 import { addTeamMember, resetTeamPassword, setTeamRole } from "../../actions";
 import { Card, Field, PageHead, Select } from "@/components/admin/ui";
@@ -12,6 +12,10 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const me = await requireAdmin();
   const sp = await searchParams;
   const team = await db.select().from(users).where(inArray(users.role, ["ADMIN", "STAFF"])).orderBy(asc(users.role), asc(users.name));
+  const devices = team.length
+    ? await db.select({ userId: pushSubscriptions.userId, device: pushSubscriptions.device }).from(pushSubscriptions).where(inArray(pushSubscriptions.userId, team.map((u) => u.id)))
+    : [];
+  const devicesOf = (id: string) => devices.filter((d) => d.userId === id).map((d) => d.device || "Device");
 
   return (
     <>
@@ -30,7 +34,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <Field label="Temporary password" name="password" type="text" required />
           <SubmitButton className="btn btn-primary">Add</SubmitButton>
         </form>
-        <p className="mt-3 text-xs text-ink-soft">Share the password privately. They sign in at /admin and can change it under Settings (admins) or My account (staff). If the email already has a customer account, it's upgraded.</p>
+        <p className="mt-3 text-xs text-ink-soft">Share the password privately. They sign in at /admin and can change it under Settings (admins) or My account (staff). Everyone on this list gets order notifications once they tap “Turn on notifications” on their dashboard. If the email already has a customer account, it's upgraded.</p>
       </Card>
 
       <ul className="space-y-3">
@@ -40,6 +44,9 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
               <p className="font-bold">{u.name} {u.id === me.id && <span className="text-sm font-normal text-ink-soft">(you)</span>}</p>
               <p className="text-sm text-ink-soft">{u.email}</p>
               <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${u.role === "ADMIN" ? "bg-basil-soft text-basil-deep" : "bg-mango/25 text-[#7a5300]"}`}>{u.role === "ADMIN" ? "Admin" : "Staff"}</span>
+              <p className={`mt-1 text-xs font-semibold ${devicesOf(u.id).length ? "text-basil" : "text-ink-soft"}`}>
+                {devicesOf(u.id).length ? `🔔 Order notifications on: ${devicesOf(u.id).join(", ")}` : "🔕 Notifications not turned on yet (they tap “Turn on notifications” on the dashboard)"}
+              </p>
             </div>
             {u.id !== me.id && (
               <>
