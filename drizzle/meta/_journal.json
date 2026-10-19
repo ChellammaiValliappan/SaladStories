@@ -43,6 +43,13 @@
       "when": 1792211574131,
       "tag": "0005_upi_qr_extras",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792396606700,
+      "tag": "0006_push_subscriptions",
+      "breakpoints": true
     }
   ]
 }

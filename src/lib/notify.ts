@@ -3,6 +3,8 @@ import nodemailer from "nodemailer";
 import { formatINR } from "./money";
 import type { AddressData } from "@/db";
 import { getSettings } from "./settings";
+import { db, orderEvents } from "@/db";
+import { pushToTeam } from "./push";
 
 type OrderForNotify = {
   orderNumber: string;
@@ -33,6 +35,7 @@ export const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
   PAYMENT_FAILED: "Payment failed",
   PAYMENT_SUBMITTED: "Payment reported",
+  ALERT_FAILED: "WhatsApp alert not delivered",
   REFUNDED: "Refunded",
 };
 
@@ -222,6 +225,41 @@ export async function sendTelegramDocument(chatId: string, filename: string, con
   }
 }
 
+// ---------------- Owner alerts ----------------
+
+const orderLink = (o: OrderForNotify) => (o.id ? `${siteUrl()}/admin/orders/${o.id}` : `${siteUrl()}/admin/orders`);
+
+/**
+ * WhatsApp goes through a third party (CallMeBot), so it gets a short message with
+ * no customer details. Phone notifications come from the site itself. If WhatsApp
+ * fails, the order is flagged in the admin so nothing is missed.
+ */
+async function alertOwner(o: OrderForNotify, kind: "order" | "payment") {
+  const amount = formatINR(o.total);
+  const short =
+    kind === "order"
+      ? `🥗 New order ${o.orderNumber} · ${amount} · ${o.slotLabel}\nOpen: ${orderLink(o)}`
+      : `💰 Payment to check: ${o.orderNumber} · ${amount}\nOpen: ${orderLink(o)}`;
+  const [whatsapp] = await Promise.all([
+    sendOwnerWhatsApp(short),
+    pushToTeam({
+      title: kind === "order" ? `New order · ${amount}` : `Payment to check · ${amount}`,
+      body: `${o.orderNumber} · ${o.slotLabel}${kind === "payment" ? " · tap to confirm" : ""}`,
+      url: o.id ? `/admin/orders/${o.id}` : "/admin/orders",
+      tag: `${kind}-${o.orderNumber}`,
+    }).catch((err) => {
+      console.error("[push failed]", err);
+      return 0;
+    }),
+  ]);
+  if (!whatsapp && process.env.CALLMEBOT_APIKEY && o.id) {
+    await db
+      .insert(orderEvents)
+      .values({ orderId: o.id, status: "ALERT_FAILED", note: `WhatsApp alert for this ${kind === "order" ? "order" : "payment"} didn't go through` })
+      .catch(() => {});
+  }
+}
+
 // ---------------- Public API ----------------
 
 export async function notifyNewOrder(o: OrderForNotify) {
@@ -243,8 +281,8 @@ Total: ${formatINR(o.total)}${o.couponCode ? ` (coupon ${o.couponCode})` : ""}`;
       summary,
       emailHtml("New paid order", esc(`${o.customerName} (${o.phone}, ${o.email})`), o),
     ),
-    sendOwnerWhatsApp(`${summary}\n\nOpen: ${siteUrl()}/admin/orders`),
-    sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, `${summary}\n\nOpen: ${siteUrl()}/admin/orders`),
+    alertOwner(o, "order"),
+    sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, `${summary}\n\nOpen: ${orderLink(o)}`),
     sendEmail(
       o.email,
       `Your Salad Stories order ${o.orderNumber} is confirmed`,
@@ -282,7 +320,7 @@ ${link}`;
     sendEmail(ownerEmail, `Check payment: ${o.orderNumber} — ${formatINR(o.total)}`, text,
       emailHtml("Payment to check", `${esc(o.customerName)} says they paid ${formatINR(o.total)} by UPI. Transaction ID: <b>${esc(o.upiRef ?? "—")}</b>. Check your Google Pay or bank app, then confirm it in the admin: <a href="${link}">${link}</a>`, o)),
     sendTelegram(process.env.TELEGRAM_CHAT_ID || settings.telegramChatId, text),
-    sendOwnerWhatsApp(text),
+    alertOwner(o, "payment"),
     sendEmail(o.email, `We've got your order ${o.orderNumber} — confirming payment`,
       `Hi ${o.customerName}, thanks! We're checking your UPI payment (transaction ID ${o.upiRef ?? "—"}) and will confirm your order shortly.\nTrack it: ${trackingUrl(o)}`,
       emailHtml(`Thanks, ${o.customerName.split(" ")[0]}!`, "We're checking your Google Pay payment and will confirm your order shortly.", o)),

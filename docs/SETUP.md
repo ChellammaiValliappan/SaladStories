@@ -117,13 +117,20 @@ Two Netlify scheduled functions (`netlify/functions/`) send to your Telegram and
 
 Buttons on the same card send either one immediately, and **Download all orders (CSV)** works any time. The jobs use `AUTH_SECRET` to call the site (or `CRON_SECRET` if you set one).
 
+### Notifications from your own site (free, private — recommended)
+
+On each phone or computer you use: log in to the admin → **Dashboard → Turn on notifications** → Allow. Every new order and payment to check then pops up on that device with a sound, even when the site is closed. Nothing passes through any other company.
+- **Android:** works in Chrome.
+- **iPhone:** open the site in Safari → Share → **Add to Home Screen**, open it from the home screen, log in, then turn notifications on.
+- Keys: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` in Netlify (already set). New keys: `npx web-push generate-vapid-keys` (everyone then turns notifications on again).
+
 ### WhatsApp alerts to your own number (free, CallMeBot)
 
 1. Open https://www.callmebot.com/blog/free-api-whatsapp-messages/, save their bot number in your contacts and, from your WhatsApp, send it `I allow callmebot to send me messages`.
 2. Add the API key it replies with to Netlify as `CALLMEBOT_APIKEY` → trigger a deploy.
 3. Put your WhatsApp number (with 91) in **Admin → Settings → Contact details → WhatsApp number**.
 
-New orders, payments to check and the nightly summary now arrive on WhatsApp too. It's a free shared service, so keep Telegram or email on as a backup. (Meta's official WhatsApp Cloud API is also supported via `WHATSAPP_TOKEN`, but it charges per message.)
+New orders, payments to check and the nightly summary now arrive on WhatsApp too. WhatsApp messages are kept short (order number, amount, slot, link) so no customer names, phones or addresses go to CallMeBot. If a WhatsApp alert fails, the order is flagged on your dashboard and the site notification still reaches you. (Meta's official WhatsApp Cloud API is also supported via `WHATSAPP_TOKEN`, but it charges per message.)
 
 ## Step 6 — Food photos (Cloudinary, free) · 5 minutes
 

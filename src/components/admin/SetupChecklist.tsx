@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { Check, Circle } from "lucide-react";
-import { coupons, db, products } from "@/db";
+import { coupons, db, products, pushSubscriptions } from "@/db";
 import { getSettings } from "@/lib/settings";
 import { razorpayConfigured } from "@/lib/razorpay";
 import { UPI_ID_RE } from "@/lib/upi";
@@ -9,10 +9,11 @@ import { UPI_ID_RE } from "@/lib/upi";
 /** "What's left before launch" — each item ticks itself off when done. */
 export async function SetupChecklist() {
   const s = await getSettings();
-  const [illustrated, unverified, testCoupons] = await Promise.all([
+  const [illustrated, unverified, testCoupons, devices] = await Promise.all([
     db.select({ id: products.id }).from(products).where(and(eq(products.status, "PUBLISHED"), like(products.image, "/images/bowls/%"))),
     db.select({ id: products.id }).from(products).where(and(eq(products.status, "PUBLISHED"), eq(products.nutritionVerified, false))),
     db.select({ id: coupons.id }).from(coupons).where(and(eq(coupons.isActive, true), inArray(coupons.code, ["WELCOME10", "HEALTH50", "FREEDELIVERY"]))),
+    db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).limit(1),
   ]);
   const live = process.env.RAZORPAY_KEY_ID?.startsWith("rzp_live_");
   type Item = { done: boolean; label: string; href?: string; hint?: string; optional?: boolean };
@@ -26,7 +27,8 @@ export async function SetupChecklist() {
   const items: Item[] = [
     ...paymentItems,
     { done: !!(process.env.SMTP_HOST && process.env.SMTP_USER), label: "Turn on order emails", hint: "Gmail app password works — see docs/SETUP.md." },
-    { done: !!(process.env.TELEGRAM_BOT_TOKEN && (s.telegramChatId || process.env.TELEGRAM_CHAT_ID)) || !!process.env.WHATSAPP_TOKEN, label: "Get order alerts on your phone (Telegram is free)", href: "/admin/settings" },
+    { done: devices.length > 0, label: "Turn on order notifications on your phone", href: "/admin/settings", hint: "Free and private — sent by your site. Also add WhatsApp or Telegram as a second channel." },
+    { done: !!(process.env.CALLMEBOT_APIKEY || process.env.WHATSAPP_TOKEN || (process.env.TELEGRAM_BOT_TOKEN && (s.telegramChatId || process.env.TELEGRAM_CHAT_ID))), label: "Add WhatsApp or Telegram alerts (free)", href: "/admin/settings" },
     { done: !!(s.phone || s.whatsapp), label: "Add your phone / WhatsApp number", href: "/admin/settings" },
     { done: illustrated.length === 0, label: `Upload real photos (${illustrated.length} item${illustrated.length === 1 ? "" : "s"} still use drawings)`, href: "/admin/products" },
     { done: unverified.length === 0, label: `Enter verified nutrition (${unverified.length} item${unverified.length === 1 ? "" : "s"} hidden)`, href: "/admin/products", optional: true },

@@ -2,6 +2,8 @@ import { requireAdmin } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { connectTelegram, saveSettings, sendBackupNow, sendSummaryNow, sendTestAlert } from "../../actions";
 import { alertChannels } from "@/lib/reports";
+import { PushToggle } from "@/components/admin/PushToggle";
+import { pushConfigured, pushPublicKey } from "@/lib/push";
 import { Card, Check, Field, PageHead } from "@/components/admin/ui";
 import { Flash } from "@/components/admin/Flash";
 import { SubmitButton } from "@/components/admin/SubmitButton";
@@ -178,6 +180,12 @@ async function AlertsCard() {
         You get a message for every new order and every payment to check, a <b>sales summary every night at 10 pm</b>, and a <b>backup of all orders every Monday at 8 am</b> (a spreadsheet file).
       </p>
 
+      <div className="mt-4 rounded-xl border-2 border-basil p-4">
+        <h3 className="font-bold">Notifications from your site (free, private)</h3>
+        <p className="mb-3 mt-1 text-sm text-ink-soft">Sent straight from Salad Stories to your phone — no other company sees your orders. Turn it on once on each phone or computer you use.</p>
+        {pushConfigured() ? <PushToggle publicKey={pushPublicKey()} /> : <p className="text-sm">Not set up yet (VAPID keys missing in Netlify).</p>}
+      </div>
+
       <div className="mt-4 rounded-xl bg-crate p-4">
         <h3 className="font-bold">WhatsApp (free, to your own number)</h3>
         {c.whatsappKey && c.whatsappNumber ? (
@@ -193,7 +201,7 @@ async function AlertsCard() {
             </li>
           </ol>
         )}
-        <p className="mt-2 text-xs text-ink-soft">A free community service for personal alerts: messages can take a few seconds, and it may occasionally be slow — keep Telegram or email on as a backup.</p>
+        <p className="mt-2 text-xs text-ink-soft">WhatsApp alerts are short (order number, amount, slot, link) — no customer names, phones or addresses go to CallMeBot. It&apos;s a free shared service, so it can be slow; if a message fails, the order is flagged on your dashboard and the site notification above still reaches you.</p>
       </div>
 
       <div className="mt-4 grid gap-5 md:grid-cols-2">

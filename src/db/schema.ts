@@ -334,6 +334,17 @@ export const reviews = pgTable("reviews", {
 
 // ---------- Relations ----------
 
+/** Phones/computers of team members who turned on order notifications in the admin. */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: id(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  device: text("device").notNull().default(""),
+  createdAt: createdAt(),
+});
+
 export const productRelations = relations(products, ({ many, one }) => ({
   optionGroups: many(optionGroups),
   category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
