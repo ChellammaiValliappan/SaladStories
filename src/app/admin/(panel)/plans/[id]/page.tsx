@@ -35,7 +35,7 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
 
       <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
         <Card title="Days">
-          <p className="mb-3 text-sm text-ink-soft">The team can swap or skip any day that the kitchen hasn&apos;t started, even after the customer&apos;s 9 pm cut-off.</p>
+          <p className="mb-3 text-sm text-ink-soft">The team can swap or skip any day that the kitchen hasn&apos;t started, even within the customer&apos;s 24-hour cut-off.</p>
           <ul className="divide-y divide-line">
             {sub.days.map((d) => {
               const open = sub.status === "ACTIVE" && d.status === "SCHEDULED" && (!d.order || d.order.status === "PAID") && d.date >= today;
@@ -47,6 +47,7 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
                   </div>
                   <p>
                     <span className={d.status === "SKIPPED" ? "line-through" : "font-semibold"}>{sub.quantity} × {d.productName}</span>
+                    {sub.address2 && <span className="ml-2 whitespace-nowrap rounded-full bg-mango/30 px-2 py-0.5 text-xs font-semibold">{d.addressNo === 2 ? sub.address2Label : sub.addressLabel}</span>}
                     <span className="ml-2 whitespace-nowrap rounded-full bg-crate px-2 py-0.5 text-xs font-semibold text-ink-soft">{d.status === "SKIPPED" ? "Skipped" : d.order ? STATUS_LABELS[d.order.status] ?? d.order.status : "Not paid yet"}</span>
                   </p>
                   {open && (
@@ -78,8 +79,13 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
           <Card title="Customer">
             <p className="font-semibold">{sub.customerName}</p>
             <p className="text-sm"><a className="text-basil underline" href={`tel:${sub.phone}`}>{sub.phone}</a> · {sub.email}</p>
-            <p className="mt-2 text-sm text-ink-soft">{addressLine(sub.address)}</p>
-            {sub.address.instructions && <p className="mt-2 rounded bg-mango/20 px-2 py-1 text-sm">Note: {sub.address.instructions}</p>}
+            {[{ label: sub.address2 ? sub.addressLabel : null, a: sub.address }, ...(sub.address2 ? [{ label: sub.address2Label, a: sub.address2 }] : [])].map(({ label, a }, i) => (
+              <div key={i} className="mt-2 text-sm">
+                {label && <p className="font-semibold">{label}</p>}
+                <p className="text-ink-soft">{addressLine(a)}</p>
+                {a.instructions && <p className="mt-1 rounded bg-mango/20 px-2 py-1">Note: {a.instructions}</p>}
+              </div>
+            ))}
           </Card>
           <Card title="Plan">
             <dl className="space-y-1.5 text-sm">

@@ -8,7 +8,7 @@ import { formatINR } from "@/lib/money";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Meal plans",
-  description: "Fresh salad bowls delivered every day. Trial, weekly and monthly plans — pick any bowl for any day, swap or skip until 9 pm the evening before.",
+  description: "Fresh salad bowls delivered Monday to Friday. Trial, weekly and monthly plans — pick any bowl for any day, office and home addresses, skip up to 24 hours before.",
 };
 
 const ACCENTS = ["bg-mango/30", "bg-sprout/40", "bg-basil text-white", "bg-carrot/25"];
@@ -20,9 +20,9 @@ export default async function PlansPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 pt-10">
       <p className="font-semibold text-basil">Meal plans</p>
-      <h1 className="mt-1 max-w-3xl text-5xl font-[800] text-basil-deep sm:text-6xl">A fresh bowl at your door, every day</h1>
+      <h1 className="mt-1 max-w-3xl text-5xl font-[800] text-basil-deep sm:text-6xl">A fresh bowl every working day</h1>
       <p className="mt-4 max-w-2xl text-lg text-ink-soft">
-        Choose a plan, pick any bowl for each day, and we&apos;ll deliver at the time you choose. Plans save you up to{" "}
+        Choose a plan, pick any bowl for each day, and we&apos;ll deliver Monday to Friday at the time you choose — to your office, your home, or both. Plans save you up to{" "}
         {Math.max(0, ...plans.map((p) => p.discountPercent))}% on the menu price.
       </p>
 
@@ -65,8 +65,8 @@ export default async function PlansPage() {
           {[
             { icon: CalendarDays, t: "Pick your days", d: "Choose a start date and delivery time — or tap exactly the dates you want." },
             { icon: CalendarCheck, t: "Choose a bowl for each day", d: "Mix and match any bowl. Fill every day with one tap, or vary it." },
-            { icon: Repeat, t: "Swap any day", d: "Change a day's bowl until 9 pm the evening before — any bowl up to that day's price." },
-            { icon: SkipForward, t: "Skip, never lose a meal", d: "Travelling? Skip a day and it moves to the end of your plan." },
+            { icon: Repeat, t: "Office and home", d: "Hybrid week? Send office days to work and work-from-home days to home — set once when you order." },
+            { icon: SkipForward, t: "Skip, never lose a meal", d: "Not around? Skip a day up to 24 hours before and it's added to the end of your plan. You can also swap the bowl." },
           ].map((s, i) => (
             <li key={s.t} className="rounded-[1.5rem] border border-line bg-white p-5">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-basil-soft text-basil"><s.icon className="h-5 w-5" /></span>

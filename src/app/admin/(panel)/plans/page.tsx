@@ -4,6 +4,7 @@ import { db, orders, subscriptionDays, subscriptions } from "@/db";
 import { requireStaff } from "@/lib/auth";
 import { formatINR } from "@/lib/money";
 import { getPlans, subscriptionState } from "@/lib/plans";
+import { parseWeekdays, WEEKDAY_NAMES } from "@/lib/plans-core";
 import { addDays, formatDateLong, istParts } from "@/lib/time";
 import { savePlan } from "../../actions";
 import { Badge, Card, Check, Empty, Field, PageHead, Table } from "@/components/admin/ui";
@@ -108,6 +109,17 @@ export default async function PlansAdminPage({ searchParams }: { searchParams: P
                 <Field label="Discount %" name="discountPercent" type="number" defaultValue={p?.discountPercent ?? 0} />
                 <Field label="Delivery per day (₹)" name="deliveryFeePerDay" type="number" step="0.01" defaultValue={p ? r(p.deliveryFeePerDay) : 0} hint="0 = free" />
                 <Field label="Order on page" name="sortOrder" type="number" defaultValue={p?.sortOrder ?? plans.length + 1} />
+                <fieldset className="md:col-span-6">
+                  <legend className="label">Delivery days</legend>
+                  <div className="flex flex-wrap gap-3">
+                    {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                      <label key={d} className="flex items-center gap-1.5 text-sm font-semibold">
+                        <input type="checkbox" name="weekdays" value={d} defaultChecked={parseWeekdays(p?.weekdays ?? "1,2,3,4,5").includes(d)} className="h-5 w-5 accent-[#1f6b3a]" />
+                        {WEEKDAY_NAMES[d]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <div className="flex items-end justify-between gap-3 md:col-span-6">
                   <Check label="Show on the plans page" name="isActive" defaultChecked={p ? p.isActive : true} />
                   <SubmitButton className="btn btn-primary">{p ? "Save" : "Add plan"}</SubmitButton>

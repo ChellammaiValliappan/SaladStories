@@ -23,8 +23,8 @@ import { checkoutSchema, CheckoutError, newOrderNumber, paymentMode, startPaymen
 import { addDays, dayOfWeek, formatDateLabel, formatDateLong, formatTime, istParts } from "./time";
 import { formatINR } from "./money";
 
-import { canChangeDay, earliestStart, planSelections, planSubtotal } from "./plans-core";
-export { canChangeDay, earliestStart, planSelections };
+import { addressNoFor, canChangeDay, earliestStart, parseWeekdays, planSelections, planSubtotal, weekdaysLabel } from "./plans-core";
+export { canChangeDay, earliestStart, planSelections, weekdaysLabel };
 /** How far ahead plan days can be booked. */
 export const PLAN_HORIZON_DAYS = 120;
 /** Latest start date offered for a plan. */
@@ -59,33 +59,35 @@ async function deliveryContext(slotId: string) {
 }
 
 /** Is this date deliverable for the slot (runs that weekday, not a holiday, not full)? */
-async function dateStatus(date: string, slot: Slot, blackout: Set<string>, checkCapacity = true) {
+async function dateStatus(date: string, slot: Slot, blackout: Set<string>, planDays: number[] | null, checkCapacity = true) {
   const days = slot.daysOfWeek.split(",").map((d) => Number(d.trim()));
-  if (!days.includes(dayOfWeek(date))) return "closed" as const;
+  const dow = dayOfWeek(date);
+  if (!days.includes(dow) || (planDays && !planDays.includes(dow))) return "closed" as const;
   if (blackout.has(date)) return "holiday" as const;
   if (checkCapacity && (await slotUsage(date, slot.id)) >= slot.maxOrders) return "full" as const;
   return "open" as const;
 }
 
 /** The next `count` deliverable dates from `start` (skipping closed days, holidays and full slots). */
-export async function nextDeliveryDates(slot: Slot, blackout: Set<string>, start: string, count: number, after = false) {
+export async function nextDeliveryDates(slot: Slot, blackout: Set<string>, start: string, count: number, planDays: number[] | null, after = false) {
   const out: string[] = [];
   const limit = addDays(istParts().dateStr, PLAN_HORIZON_DAYS);
   for (let d = after ? addDays(start, 1) : start; out.length < count && d <= limit; d = addDays(d, 1)) {
-    if ((await dateStatus(d, slot, blackout)) === "open") out.push(d);
+    if ((await dateStatus(d, slot, blackout, planDays)) === "open") out.push(d);
   }
   return out;
 }
 
 /** Calendar for "Pick your days": every date in the next 60 days and whether it can be picked. */
-export async function pickableDates(slotId: string, days = 60) {
-  const { slot, blackout } = await deliveryContext(slotId);
-  if (!slot) return [];
-  const first = earliestStart();
+export async function pickableDates(slotId: string, planCode: string, days = 60) {
+  const [{ slot, blackout }, plan] = await Promise.all([deliveryContext(slotId), getPlanByCode(planCode)]);
+  if (!slot || !plan) return [];
+  const planDays = parseWeekdays(plan.weekdays);
+  const first = earliestStart(slot.startTime);
   const out: { date: string; label: string; status: "open" | "closed" | "holiday" | "full" }[] = [];
   for (let i = 0; i < days; i++) {
     const date = addDays(first, i);
-    out.push({ date, label: formatDateLabel(date), status: await dateStatus(date, slot, blackout) });
+    out.push({ date, label: formatDateLabel(date), status: await dateStatus(date, slot, blackout, planDays) });
   }
   return out;
 }
@@ -106,6 +108,9 @@ export const planQuoteSchema = z.object({
   quantity: z.number().int().min(1).max(5).default(1),
   large: z.boolean().default(false),
   pincode: z.string().trim().max(10).optional().nullable(),
+  /** Second address (optional): its PIN code and which weekdays go there. */
+  pincode2: z.string().trim().max(10).optional().nullable(),
+  addressByWeekday: z.record(z.string().regex(/^[0-6]$/), z.number().int().min(1).max(2)).default({}),
 });
 export type PlanQuoteInput = z.infer<typeof planQuoteSchema>;
 
@@ -119,18 +124,19 @@ export async function quotePlan(input: PlanQuoteInput) {
 
   // Work out the delivery dates on the server.
   let dates: string[] = [];
-  const first = earliestStart();
+  const planDays = parseWeekdays(plan.weekdays);
+  const first = earliestStart(slot.startTime);
   if (plan.days) {
     const start = input.startDate && input.startDate >= first ? input.startDate : first;
     if (start > addDays(first, PLAN_START_WITHIN_DAYS)) blockers.push(`Plans can start up to ${PLAN_START_WITHIN_DAYS} days ahead.`);
-    dates = await nextDeliveryDates(slot, blackout, start, plan.days);
+    dates = await nextDeliveryDates(slot, blackout, start, plan.days, planDays);
     if (dates.length < plan.days) blockers.push("We don't have enough open delivery days for this plan right now. Try another time slot or start date.");
   } else {
     const picked = [...new Set(input.dates ?? [])].sort();
     const last = addDays(first, 59);
     for (const d of picked) {
       if (d < first || d > last) continue;
-      if ((await dateStatus(d, slot, blackout)) === "open") dates.push(d);
+      if ((await dateStatus(d, slot, blackout, planDays)) === "open") dates.push(d);
     }
     if (dates.length !== picked.length) blockers.push("Some dates you picked can't be delivered any more. Please check the calendar.");
     if (dates.length < plan.minDays) blockers.push(`Pick at least ${plan.minDays} days.`);
@@ -139,18 +145,20 @@ export async function quotePlan(input: PlanQuoteInput) {
 
   // Price each day's bowl from the database.
   const pickFor = (date: string, i: number) => input.bowls[date] || input.sequence?.[i] || "";
+  const usesSecond = Object.entries(input.addressByWeekday).some(([d, n]) => n === 2 && planDays.includes(Number(d)));
+  const addrOf = (date: string) => addressNoFor(date, input.addressByWeekday, usesSecond);
   const productIds = [...new Set(dates.map(pickFor).filter(Boolean))];
   const products = await getProductsByIds(productIds);
   const byId = new Map(products.map((p) => [p.id, p]));
   const days = dates.map((date, i) => {
     const pid = pickFor(date, i);
     const p = pid ? byId.get(pid) : undefined;
-    if (!p) return { date, label: formatDateLong(date), productId: null, productName: "", unitPrice: 0, selections: {} as Selections, summary: "", issue: "Pick a bowl" };
+    if (!p) return { date, label: formatDateLong(date), productId: null, productName: "", unitPrice: 0, selections: {} as Selections, summary: "", issue: "Pick a bowl", addressNo: addrOf(date) };
     const groups = p.optionGroups as GroupDef[];
     const selections = planSelections(groups, input.large);
     const price = unitPrice(p.discountPrice ?? p.basePrice, groups, selections);
     const issue = p.status !== "PUBLISHED" ? "No longer on the menu" : p.stockStatus === "SOLD_OUT" ? "Sold out for now — pick another" : null;
-    return { date, label: formatDateLong(date), productId: p.id, productName: p.name, unitPrice: price, selections, summary: selectionSummary(groups, selections), issue };
+    return { date, label: formatDateLong(date), productId: p.id, productName: p.name, unitPrice: price, selections, summary: selectionSummary(groups, selections), issue, addressNo: addrOf(date) };
   });
   if (days.some((d) => !d.productId)) blockers.push("Pick a bowl for every day.");
   else if (days.some((d) => d.issue)) blockers.push("Some bowls need changing.");
@@ -173,11 +181,22 @@ export async function quotePlan(input: PlanQuoteInput) {
     if (!area) areaError = "Sorry, Salad Stories is not delivering to this location yet.";
   }
   if (areaError) blockers.push(areaError);
+  let area2: Awaited<ReturnType<typeof findAreaByPincode>> = null;
+  let area2Error: string | null = null;
+  if (usesSecond) {
+    if (input.pincode2) area2 = await findAreaByPincode(input.pincode2);
+    if (!area2) area2Error = input.pincode2 ? "Sorry, we don't deliver to the second address's PIN code yet." : "Add the second address, or send every day to one address.";
+    if (area2Error) blockers.push(area2Error);
+  }
   if (settings.deliveryPaused) blockers.push(settings.pausedMessage);
 
   return {
-    plan: { code: plan.code, name: plan.name, days: plan.days, minDays: plan.minDays, maxDays: plan.maxDays, discountPercent: plan.discountPercent },
-    slot: { id: slot.id, label: slotLabelOf(slot) },
+    plan: { code: plan.code, name: plan.name, days: plan.days, minDays: plan.minDays, maxDays: plan.maxDays, discountPercent: plan.discountPercent, weekdays: planDays },
+    slot: { id: slot.id, label: slotLabelOf(slot), start: slot.startTime },
+    earliest: first,
+    usesSecond,
+    areaId2: area2?.id ?? null,
+    area2Error,
     days,
     quantity: input.quantity,
     large: input.large,
@@ -198,6 +217,9 @@ export const planBuySchema = planQuoteSchema.extend({
   idempotencyKey: z.string().min(8).max(80),
   contact: checkoutSchema.shape.contact,
   address: checkoutSchema.shape.address,
+  addressLabel: z.string().trim().max(30).default(""),
+  address2: checkoutSchema.shape.address.optional().nullable(),
+  address2Label: z.string().trim().max(30).default(""),
   notes: z.string().trim().max(300).default(""),
   saveAddress: z.boolean().optional(),
   acceptedPolicy: z.literal(true, { message: "Please confirm you've read the cancellation and refund policy" }),
@@ -226,7 +248,7 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
     if (o) return { ...(await startPaymentAgain(o, pay)), planNumber: existing.number };
   }
 
-  const quote = await quotePlan({ ...input, pincode: input.address.pincode });
+  const quote = await quotePlan({ ...input, pincode: input.address.pincode, pincode2: input.address2?.pincode ?? null });
   if (quote.blockers.length) throw new CheckoutError(quote.blockers[0]);
   const days = quote.days;
   const plan = (await getPlanByCode(input.planCode))!;
@@ -234,6 +256,10 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
   const end = days[days.length - 1].date;
   const label = `${plan.name} plan · ${days.length} day${days.length === 1 ? "" : "s"}`;
   const instructions = [input.address.instructions, input.notes].filter(Boolean).join(" · ");
+  const second = quote.usesSecond && input.address2 ? input.address2 : null;
+  const instructions2 = second ? [second.instructions, input.notes].filter(Boolean).join(" · ") : "";
+  // Only keep weekday choices that point at address 2.
+  const byWeekday = Object.fromEntries(Object.entries(input.addressByWeekday).filter(([, n]) => second && n === 2));
 
   const { sub, order } = await db.transaction(async (tx) => {
     const [sub] = await tx
@@ -252,6 +278,12 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
         areaId: quote.areaId,
         slotId: quote.slot.id,
         slotName: quote.slot.label,
+        addressLabel: input.addressLabel || (second ? "Address 1" : "Delivery address"),
+        address2: second ? { ...second, instructions: instructions2 } : null,
+        address2Label: second ? input.address2Label || "Address 2" : "Address 2",
+        pincode2: second?.pincode ?? null,
+        areaId2: second ? quote.areaId2 : null,
+        addressByWeekday: byWeekday,
         quantity: input.quantity,
         large: input.large,
         notes: input.notes,
@@ -275,6 +307,7 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
         productName: d.productName,
         selections: d.selections,
         unitPrice: d.unitPrice,
+        addressNo: second ? d.addressNo : 1,
       })),
     );
     const [order] = await tx
@@ -336,6 +369,7 @@ async function startPaymentAgain(order: typeof orders.$inferSelect, pay: Awaited
 // ---------------- After payment ----------------
 
 function dayOrderValues(sub: SubRow, day: DayRow) {
+  const two = day.addressNo === 2 && sub.address2;
   return {
     orderNumber: newOrderNumber(),
     trackingToken: crypto.randomBytes(16).toString("hex"),
@@ -346,9 +380,9 @@ function dayOrderValues(sub: SubRow, day: DayRow) {
     customerName: sub.customerName,
     phone: sub.phone,
     email: sub.email,
-    address: sub.address,
-    pincode: sub.pincode,
-    areaId: sub.areaId,
+    address: two ? sub.address2! : sub.address,
+    pincode: two ? sub.pincode2 ?? sub.pincode : sub.pincode,
+    areaId: two ? sub.areaId2 : sub.areaId,
     slotId: sub.slotId,
     deliveryDate: day.date,
     slotLabel: `${formatDateLong(day.date)}, ${sub.slotName}`,
@@ -456,13 +490,21 @@ export function subscriptionState(sub: Pick<SubRow, "status" | "endDate">, today
 
 type Actor = { userId: string; isTeam: boolean };
 
+/** Start time of the plan's delivery slot ("12:30"), used for the 24-hour change cut-off. */
+export async function planSlotStart(sub: Pick<SubRow, "slotId">) {
+  if (!sub.slotId) return "00:00";
+  const [slot] = await db.select({ startTime: deliverySlots.startTime }).from(deliverySlots).where(eq(deliverySlots.id, sub.slotId));
+  return slot?.startTime ?? "00:00";
+}
+
 async function loadForChange(subscriptionId: string, dayId: string, actor: Actor) {
   const sub = await getSubscription(subscriptionId);
   if (!sub || (!actor.isTeam && sub.userId !== actor.userId)) throw new CheckoutError("Plan not found.");
   if (sub.status !== "ACTIVE") throw new CheckoutError(sub.status === "PENDING_PAYMENT" ? "You can change days once the plan is paid." : "This plan isn't active.");
   const day = sub.days.find((d) => d.id === dayId);
   if (!day || day.status !== "SCHEDULED") throw new CheckoutError("That day can't be changed.");
-  if (!actor.isTeam && !canChangeDay(day.date)) throw new CheckoutError(`Changes for ${formatDateLong(day.date)} closed at 9 pm the evening before.`);
+  if (!actor.isTeam && !canChangeDay(day.date, await planSlotStart(sub)))
+    throw new CheckoutError(`Changes for ${formatDateLong(day.date)} closed 24 hours before delivery.`);
   if (day.order && day.order.status !== "PAID") throw new CheckoutError("The kitchen has already started this day.");
   return { sub, day };
 }
@@ -516,7 +558,8 @@ export async function skipPlanDay(subscriptionId: string, dayId: string, actor: 
   const { slot, blackout } = sub.slotId ? await deliveryContext(sub.slotId) : { slot: null, blackout: new Set<string>() };
   if (!slot) throw new CheckoutError("This plan's delivery time is no longer offered. Please contact us.");
   const lastDate = sub.days.reduce((m, d) => (d.date > m ? d.date : m), sub.endDate);
-  const [newDate] = await nextDeliveryDates(slot, blackout, lastDate, 1, true);
+  const plan = sub.planId ? (await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, sub.planId)))[0] : undefined;
+  const [newDate] = await nextDeliveryDates(slot, blackout, lastDate, 1, parseWeekdays(plan?.weekdays ?? "1,2,3,4,5"), true);
   if (!newDate) throw new CheckoutError("We couldn't find an open day to move this to. Please contact us.");
   const [summary] = await summariesFor([day]);
 
@@ -528,7 +571,16 @@ export async function skipPlanDay(subscriptionId: string, dayId: string, actor: 
     }
     const [added] = await tx
       .insert(subscriptionDays)
-      .values({ subscriptionId: sub.id, date: newDate, productId: day.productId, productName: day.productName, selections: day.selections, unitPrice: day.unitPrice })
+      .values({
+        subscriptionId: sub.id,
+        date: newDate,
+        productId: day.productId,
+        productName: day.productName,
+        selections: day.selections,
+        unitPrice: day.unitPrice,
+        // The extra day goes to whichever address that weekday uses.
+        addressNo: addressNoFor(newDate, sub.addressByWeekday, !!sub.address2),
+      })
       .returning();
     await createDayOrder(tx, sub, added, `Plan ${sub.number} · moved from ${formatDateLong(day.date)}`, summary);
     await tx.update(subscriptions).set({ endDate: newDate, updatedAt: new Date() }).where(eq(subscriptions.id, sub.id));

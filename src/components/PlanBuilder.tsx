@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Lock, Minus, Plus, Shuffle } from "lucide-react";
 import { formatINR } from "@/lib/money";
 import type { PlanQuote } from "@/lib/plans";
+import { earliestStart, WEEKDAY_NAMES, weekdaysLabel } from "@/lib/plans-core";
+import { addDays } from "@/lib/time";
 import { GPayMark } from "./UpiPay";
 
 type Bowl = { id: string; name: string; image: string | null; accent: string; isVeg: boolean; price: number; priceLarge: number; soldOut: boolean };
@@ -47,12 +49,10 @@ const shortDate = (d: string) =>
   new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
 export function PlanBuilder(props: {
-  plan: { code: string; name: string; days: number | null; minDays: number; maxDays: number; discountPercent: number };
-  slots: { id: string; label: string }[];
+  plan: { code: string; name: string; days: number | null; minDays: number; maxDays: number; discountPercent: number; weekdays: number[] };
+  slots: { id: string; label: string; start: string }[];
   bowls: Bowl[];
   hasLarge: boolean;
-  earliest: string;
-  latest: string;
   upi: boolean;
   user: { name: string; email: string; phone: string };
   address: Address | null;
@@ -64,7 +64,14 @@ export function PlanBuilder(props: {
   const mix = (n: number) => Array.from({ length: n }, (_, i) => available[i % Math.max(1, available.length)]?.id ?? "");
 
   const [slotId, setSlotId] = useState(props.slots[0]?.id ?? "");
-  const [startDate, setStartDate] = useState(props.earliest);
+  const slotStart = props.slots.find((x) => x.id === slotId)?.start ?? "12:00";
+  const earliest = earliestStart(slotStart);
+  const latest = addDays(earliest, 30);
+  const [startDate, setStartDate] = useState(() => earliestStart(props.slots[0]?.start ?? "12:00"));
+  // A later slot today can move the earliest start; never start before it.
+  useEffect(() => {
+    if (startDate < earliest) setStartDate(earliest);
+  }, [earliest, startDate]);
   const [picked, setPicked] = useState<string[]>([]);
   const [calendar, setCalendar] = useState<CalDay[] | null>(null);
   const [seq, setSeq] = useState<string[]>(() => (fixed ? mix(plan.days!) : []));
@@ -74,6 +81,11 @@ export function PlanBuilder(props: {
   const [large, setLarge] = useState(false);
   const [contact, setContact] = useState(props.user);
   const [addr, setAddr] = useState<Address>(props.address ?? emptyAddress);
+  const [two, setTwo] = useState(false);
+  const [label1, setLabel1] = useState("Office");
+  const [label2, setLabel2] = useState("Home");
+  const [addr2, setAddr2] = useState<Address>(emptyAddress);
+  const [byWeekday, setByWeekday] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
   const [saveAddress, setSaveAddress] = useState(!props.address);
   const [accepted, setAccepted] = useState(false);
@@ -87,14 +99,14 @@ export function PlanBuilder(props: {
   useEffect(() => {
     if (fixed || !slotId) return;
     setCalendar(null);
-    fetch(`/api/plans/dates?slotId=${encodeURIComponent(slotId)}`)
+    fetch(`/api/plans/dates?slotId=${encodeURIComponent(slotId)}&plan=${encodeURIComponent(plan.code)}`)
       .then((r) => r.json())
       .then((d) => {
         setCalendar(d.dates ?? []);
         setPicked((prev) => prev.filter((p) => (d.dates as CalDay[]).some((c) => c.date === p && c.status === "open")));
       })
       .catch(() => setCalendar([]));
-  }, [fixed, slotId]);
+  }, [fixed, slotId, plan.code]);
 
   // A bowl for every picked date (new dates follow the current fill choice).
   useEffect(() => {
@@ -109,6 +121,8 @@ export function PlanBuilder(props: {
   }, [fixed, picked, fillWith, available]);
 
   const pincodeOk = /^[1-9][0-9]{5}$/.test(addr.pincode.trim());
+  const pincode2Ok = /^[1-9][0-9]{5}$/.test(addr2.pincode.trim());
+  const usesTwo = two && Object.values(byWeekday).includes(2);
   const request = useMemo(
     () => ({
       planCode: plan.code,
@@ -120,8 +134,10 @@ export function PlanBuilder(props: {
       quantity,
       large,
       pincode: pincodeOk ? addr.pincode.trim() : null,
+      pincode2: usesTwo && pincode2Ok ? addr2.pincode.trim() : null,
+      addressByWeekday: usesTwo ? byWeekday : {},
     }),
-    [plan.code, slotId, fixed, startDate, picked, seq, byDate, quantity, large, pincodeOk, addr.pincode],
+    [plan.code, slotId, fixed, startDate, picked, seq, byDate, quantity, large, pincodeOk, addr.pincode, usesTwo, pincode2Ok, addr2.pincode, byWeekday],
   );
 
   // Live price from the server.
@@ -169,7 +185,8 @@ export function PlanBuilder(props: {
     /^\S+@\S+\.\S+$/.test(contact.email) &&
     addr.house.trim() &&
     addr.area.trim().length >= 2 &&
-    pincodeOk;
+    pincodeOk &&
+    (!usesTwo || (addr2.house.trim() && addr2.area.trim().length >= 2 && pincode2Ok));
   const canPay = !!quote && blockers.length === 0 && formOk && accepted && !busy;
 
   async function pay() {
@@ -180,6 +197,9 @@ export function PlanBuilder(props: {
       pincode: addr.pincode.trim(),
       contact: { name: contact.name.trim(), phone: contact.phone, email: contact.email.trim() },
       address: { ...addr, pincode: addr.pincode.trim() },
+      addressLabel: usesTwo ? label1.trim() || "Address 1" : "",
+      address2: usesTwo ? { ...addr2, pincode: addr2.pincode.trim() } : null,
+      address2Label: usesTwo ? label2.trim() || "Address 2" : "",
       notes: notes.trim(),
       saveAddress,
       acceptedPolicy: true as const,
@@ -259,19 +279,19 @@ export function PlanBuilder(props: {
             <div className="mt-5 grid gap-4 sm:grid-cols-[12rem_1fr] sm:items-end">
               <div>
                 <label className="label" htmlFor="start">Start date</label>
-                <input id="start" type="date" className="field" min={props.earliest} max={props.latest} value={startDate}
-                  onChange={(e) => setStartDate(e.target.value < props.earliest ? props.earliest : e.target.value)} />
+                <input id="start" type="date" className="field" min={earliest} max={latest} value={startDate}
+                  onChange={(e) => setStartDate(e.target.value < earliest ? earliest : e.target.value)} />
               </div>
               {days.length > 0 && (
                 <p className="text-sm text-ink-soft">
                   {days.length} delivery days: <b className="text-ink">{shortDate(days[0].date)}</b> to <b className="text-ink">{shortDate(days[days.length - 1].date)}</b>
-                  {" "}(we skip days we&apos;re closed).
+                  {" "}— deliveries {weekdaysLabel(plan.weekdays)} only.
                 </p>
               )}
             </div>
           ) : (
             <div className="mt-5">
-              <p className="label">Tap the dates you want <span className="font-normal text-ink-soft">({picked.length} picked · {plan.minDays}–{plan.maxDays} days)</span></p>
+              <p className="label">Tap the dates you want <span className="font-normal text-ink-soft">({picked.length} picked · {plan.minDays}–{plan.maxDays} days · {weekdaysLabel(plan.weekdays)})</span></p>
               {!calendar ? (
                 <p className="text-sm text-ink-soft">Loading dates…</p>
               ) : (
@@ -359,6 +379,9 @@ export function PlanBuilder(props: {
                           ))}
                         </select>
                       </div>
+                      {usesTwo && (
+                        <p className="mt-1 text-xs font-semibold text-ink-soft">To {d.addressNo === 2 ? label2 || "Address 2" : label1 || "Address 1"}</p>
+                      )}
                       {d.issue && d.productId && <p className="mt-1 text-xs font-semibold text-tomato">{d.issue}</p>}
                     </div>
                   </li>
@@ -386,6 +409,50 @@ export function PlanBuilder(props: {
             </div>
           </div>
           {quote?.areaError && <p className="mt-3 text-sm font-semibold text-tomato" role="alert">{quote.areaError}</p>}
+
+          <div className="mt-5 rounded-2xl bg-crate p-4">
+            <label className="flex items-start gap-2.5 font-semibold">
+              <input type="checkbox" checked={two} onChange={(e) => { setTwo(e.target.checked); if (e.target.checked && !Object.keys(byWeekday).length) setByWeekday(Object.fromEntries(plan.weekdays.map((d) => [String(d), d >= 4 ? 2 : 1]))); }} className="mt-0.5 h-5 w-5 shrink-0 accent-[#1f6b3a]" />
+              <span>Deliver some days to a second address <span className="block text-sm font-normal text-ink-soft">e.g. office on office days, home on work-from-home days</span></span>
+            </label>
+            {two && (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {field("Name for the address above", label1, setLabel1, { id: "p-label1", placeholder: "Office" })}
+                  {field("Name for the second address", label2, setLabel2, { id: "p-label2", placeholder: "Home" })}
+                </div>
+                <div>
+                  <p className="label">Which address each day</p>
+                  <div className="grid gap-2" role="group" aria-label="Address for each weekday">
+                    {plan.weekdays.map((d) => {
+                      const n = byWeekday[String(d)] === 2 ? 2 : 1;
+                      return (
+                        <div key={d} className="flex items-center gap-2">
+                          <span className="w-10 text-sm font-bold">{WEEKDAY_NAMES[d]}</span>
+                          {[1, 2].map((k) => (
+                            <button key={k} type="button" aria-pressed={n === k} onClick={() => setByWeekday((m) => ({ ...m, [String(d)]: k }))}
+                              className={`min-h-10 flex-1 rounded-full border-2 px-3 text-sm font-semibold ${n === k ? "border-basil bg-basil text-white" : "border-line bg-white"}`}>
+                              {k === 1 ? label1 || "Address 1" : label2 || "Address 2"}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-ink-soft">Addresses are fixed once you pay, so please double-check them.</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {field(`${label2 || "Second address"}: house / flat no.`, addr2.house, (v) => setAddr2({ ...addr2, house: v }), { id: "p2-house" })}
+                  {field("Building / street", addr2.building, (v) => setAddr2({ ...addr2, building: v }), { id: "p2-building" })}
+                  {field("Area", addr2.area, (v) => setAddr2({ ...addr2, area: v }), { id: "p2-area" })}
+                  {field("PIN code", addr2.pincode, (v) => setAddr2({ ...addr2, pincode: v.replace(/\D/g, "").slice(0, 6) }), { id: "p2-pin", inputMode: "numeric" })}
+                  {field("Landmark (optional)", addr2.landmark, (v) => setAddr2({ ...addr2, landmark: v }), { id: "p2-landmark", className: "sm:col-span-2" })}
+                  {field("Delivery instructions (optional)", addr2.instructions, (v) => setAddr2({ ...addr2, instructions: v }), { id: "p2-instr", placeholder: "e.g. Call on arrival", className: "sm:col-span-2" })}
+                </div>
+                {quote?.area2Error && usesTwo && <p className="text-sm font-semibold text-tomato" role="alert">{quote.area2Error}</p>}
+              </div>
+            )}
+          </div>
           {!props.address && (
             <label className="mt-4 flex items-center gap-2.5 text-sm font-semibold">
               <input type="checkbox" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} className="h-5 w-5 accent-[#1f6b3a]" />
@@ -422,8 +489,9 @@ export function PlanBuilder(props: {
         )}
 
         <ul className="mt-4 space-y-1 text-xs text-ink-soft">
-          <li>• Swap a day&apos;s bowl or skip a day until 9 pm the evening before.</li>
-          <li>• Skipped days move to the end of your plan — you never lose a meal.</li>
+          <li>• Swap a day&apos;s bowl or skip a day up to 24 hours before delivery.</li>
+          <li>• A skipped day is added to the end of your plan — you never lose a meal.</li>
+          <li>• Delivery addresses are fixed once you pay.</li>
         </ul>
 
         <label className="mt-4 flex items-start gap-2.5 text-sm">

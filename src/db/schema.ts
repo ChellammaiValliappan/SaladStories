@@ -360,6 +360,7 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   maxDays: integer("max_days").notNull().default(30),
   discountPercent: integer("discount_percent").notNull().default(0),
   deliveryFeePerDay: integer("delivery_fee_per_day").notNull().default(0), // paise
+  weekdays: text("weekdays").notNull().default("1,2,3,4,5"), // plan delivery days, 0 = Sunday
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: createdAt(),
@@ -386,6 +387,14 @@ export const subscriptions = pgTable(
     areaId: text("area_id").references(() => deliveryAreas.id, { onDelete: "set null" }),
     slotId: text("slot_id").references(() => deliverySlots.id, { onDelete: "set null" }),
     slotName: text("slot_name").notNull(),
+    // Optional second address (e.g. Home on work-from-home days), chosen per weekday when buying.
+    addressLabel: text("address_label").notNull().default("Address 1"),
+    address2: jsonb("address2").$type<AddressData>(),
+    address2Label: text("address2_label").notNull().default("Address 2"),
+    pincode2: text("pincode2"),
+    areaId2: text("area_id2").references(() => deliveryAreas.id, { onDelete: "set null" }),
+    /** { "1": 1, "4": 2 } = weekday (0 = Sunday) → address 1 or 2. Missing weekdays use address 1. */
+    addressByWeekday: jsonb("address_by_weekday").$type<Record<string, number>>().notNull().default({}),
     quantity: integer("quantity").notNull().default(1), // bowls per day
     large: boolean("large").notNull().default(false),
     notes: text("notes").notNull().default(""),
@@ -417,6 +426,7 @@ export const subscriptionDays = pgTable(
     selections: jsonb("selections").$type<Selections>().notNull().default({}),
     /** Price of the bowl paid for this day — the customer can swap to any bowl up to this price. */
     unitPrice: integer("unit_price").notNull(),
+    addressNo: integer("address_no").notNull().default(1),
     // SCHEDULED | SKIPPED
     status: text("status").notNull().default("SCHEDULED"),
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),

@@ -616,6 +616,7 @@ export async function savePlan(form: FormData) {
   if (days != null && (days < 1 || days > 60)) oops("/admin/plans", "Days must be between 1 and 60 (leave blank to let customers pick their dates).");
   if (minDays < 1 || maxDays > 60 || minDays > maxDays) oops("/admin/plans", "Check the minimum and maximum days (1–60).");
   if (discountPercent < 0 || discountPercent > 50) oops("/admin/plans", "Keep the discount between 0% and 50%.");
+  if (!list(form, "weekdays").length) oops("/admin/plans", "Pick at least one delivery day for the plan.");
   const data = {
     name,
     description: str(form, "description").slice(0, 200),
@@ -624,6 +625,7 @@ export async function savePlan(form: FormData) {
     maxDays: days ?? maxDays,
     discountPercent,
     deliveryFeePerDay: paiseOrNull(form, "deliveryFeePerDay") ?? 0,
+    weekdays: list(form, "weekdays").filter((d) => /^[0-6]$/.test(d)).sort().join(","),
     isActive: bool(form, "isActive"),
     sortOrder: intOrNull(form, "sortOrder") ?? 0,
   };

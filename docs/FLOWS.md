@@ -62,13 +62,14 @@ On Android (Chrome) customers can tap **⋮ → Add to Home screen**, and on iPh
 - **My account** — orders with live status, *Offers you can use*, profile, saved addresses (add, edit, delete, make default), change password.
 - **Order again** re-adds a past order at today's prices, skipping anything unavailable.
 
-### Meal plans (Trial · Weekly · Monthly · Pick your days)
+### Meal plans (Mon–Fri: Trial · Weekly · Monthly · Pick your days)
 1. **Meal plans** (top menu, homepage band or `/plans`) → pick a plan → sign in (plans need an account so customers can manage their days).
 2. Choose a **delivery time** and **start date** (or tap exact dates for *Pick your days*), bowls per day and Large portions.
 3. Choose a **bowl for each day** — *Mix it up*, *All [bowl]*, or day by day. The price updates live from the server (plan discount, delivery, tax).
 4. Address + kitchen note → accept the policy → **Pay with Google Pay** (same pay page and UTR check as normal orders).
 5. Once the owner confirms the payment, the plan is **active**: every day becomes its own kitchen order (tagged *Plan*), paid by the plan.
-6. **My account → My plans**: swap a day's bowl (to any bowl up to that day's price) or **skip** a day until **9 pm the evening before**. A skipped day moves to the end of the plan.
+6. **My account → My plans**: swap a day's bowl (to any bowl up to that day's price) or **skip** a day up to **24 hours before delivery**. A skipped day is added after the last day, on the next weekday, to that weekday's address.
+7. Hybrid workers can send some weekdays to a second address (e.g. Office Mon–Wed, Home Thu–Fri); addresses are fixed after payment. See docs/MEAL-PLANS.md.
 
 ### 3. When something goes wrong
 

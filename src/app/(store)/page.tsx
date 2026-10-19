@@ -124,8 +124,8 @@ export default async function HomePage() {
         <div className="flex flex-col gap-6 rounded-[2rem] bg-basil p-7 text-white sm:p-10 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl">
             <p className="font-semibold text-sprout">New · Meal plans</p>
-            <h2 id="plans-title" className="mt-1 text-4xl font-bold sm:text-5xl">A fresh bowl every day, your pick</h2>
-            <p className="mt-3 text-white/85">Trial, weekly and monthly plans — choose any bowl for each day, swap or skip until 9 pm the evening before. Skipped days move to the end.</p>
+            <h2 id="plans-title" className="mt-1 text-4xl font-bold sm:text-5xl">A fresh bowl every working day</h2>
+            <p className="mt-3 text-white/85">Monday to Friday plans — choose any bowl for each day, send office days and home days to different addresses, and skip up to 24 hours before. Skipped days are added to the end.</p>
           </div>
           <Link href="/plans" className="btn btn-sprout shrink-0 text-base">See meal plans</Link>
         </div>

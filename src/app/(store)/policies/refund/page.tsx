@@ -18,8 +18,9 @@ export default function RefundPolicy() {
       <p>Refunds go back to the account you paid from — for Google Pay / UPI payments we send the money back by UPI, usually within 2 working days; card or net-banking payments made through Razorpay usually take 5–7 working days, depending on your bank.</p>
       <h2>Meal plans</h2>
       <ul>
-        <li>You can change a day&apos;s bowl or skip a day until 9 pm the evening before, from My account → My plans.</li>
-        <li>Skipped days move to the end of your plan, so you don&apos;t lose any meals.</li>
+        <li>You can change a day&apos;s bowl or skip a day up to 24 hours before its delivery time, from My account → My plans.</li>
+        <li>A skipped day is added to the end of your plan (on the next delivery weekday), so you don&apos;t lose any meals. Days skipped less than 24 hours before delivery can&apos;t be moved.</li>
+        <li>Delivery addresses (including a second address for some weekdays) are fixed once the plan is paid.</li>
         <li>To stop a plan early, message us on WhatsApp with your plan number. We&apos;ll refund the days that haven&apos;t been prepared yet.</li>
       </ul>
       <h2>Coupons</h2>

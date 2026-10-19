@@ -292,8 +292,8 @@ Total: ${formatINR(o.total)}${o.couponCode ? ` (coupon ${o.couponCode})` : ""}`;
       ? sendEmail(
           o.email,
           "Your Salad Stories plan is confirmed",
-          `Hi ${o.customerName}, your plan is active!\n\n${itemsText(o)}\n\nTotal paid: ${formatINR(o.total)}\n${o.slotLabel}\n\nSwap a bowl or skip a day (until 9 pm the evening before): ${siteUrl()}/account/plans`,
-          emailHtml(`Your plan is on, ${o.customerName.split(" ")[0]}!`, `Your payment is confirmed. You can swap a bowl or skip a day until 9 pm the evening before at <a href="${siteUrl()}/account/plans">${siteUrl()}/account/plans</a>.`, o),
+          `Hi ${o.customerName}, your plan is active!\n\n${itemsText(o)}\n\nTotal paid: ${formatINR(o.total)}\n${o.slotLabel}\n\nSwap a bowl or skip a day (up to 24 hours before delivery): ${siteUrl()}/account/plans`,
+          emailHtml(`Your plan is on, ${o.customerName.split(" ")[0]}!`, `Your payment is confirmed. You can swap a bowl or skip a day up to 24 hours before delivery at <a href="${siteUrl()}/account/plans">${siteUrl()}/account/plans</a>.`, o),
         )
       : sendEmail(
           o.email,

@@ -6,7 +6,7 @@ import { db, orders, subscriptions } from "@/db";
 import { getCurrentUser, isTeam } from "@/lib/auth";
 import { formatINR } from "@/lib/money";
 import { STATUS_LABELS, addressLine } from "@/lib/notify";
-import { canChangeDay, getSubscription, subscriptionState, swapOptions } from "@/lib/plans";
+import { canChangeDay, getSubscription, planSlotStart, subscriptionState, swapOptions } from "@/lib/plans";
 import { formatDateLong, istParts } from "@/lib/time";
 import { SubmitButton } from "@/components/admin/SubmitButton";
 import { skipDay, swapDay } from "../actions";
@@ -24,6 +24,12 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
   const [row] = await db.select({ id: subscriptions.id, userId: subscriptions.userId }).from(subscriptions).where(eq(subscriptions.number, number));
   if (!row || (row.userId !== user.id && !isTeam(user.role))) notFound();
   const sub = (await getSubscription(row.id))!;
+  const slotStart = await planSlotStart(sub);
+  const labelOf = (n: number) => (n === 2 && sub.address2 ? sub.address2Label : sub.addressLabel);
+  const weekdaysFor = (n: number) => {
+    const days = [...new Set(sub.days.filter((d) => d.addressNo === n).map((d) => new Date(`${d.date}T00:00:00Z`).getUTCDay()))].sort();
+    return days.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(", ");
+  };
   const st = subscriptionState(sub);
   const today = istParts().dateStr;
   const scheduled = sub.days.filter((d) => d.status === "SCHEDULED");
@@ -59,7 +65,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
 
       {sub.status === "ACTIVE" && (
         <p className="mt-6 rounded-2xl bg-crate p-4 text-sm">
-          Change a day&apos;s bowl or skip a day until <b>9 pm the evening before</b>. You can swap to any bowl up to that day&apos;s price. Skipped days move to the end of your plan.
+          Change a day&apos;s bowl or skip a day up to <b>24 hours before delivery</b>. You can swap to any bowl up to that day&apos;s price. A skipped day is added to the end of your plan. Delivery addresses can&apos;t be changed.
         </p>
       )}
 
@@ -67,7 +73,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
         {sub.days.map((d) => {
           const skipped = d.status === "SKIPPED";
           const past = d.date < today;
-          const editable = sub.status === "ACTIVE" && !skipped && canChangeDay(d.date) && (!d.order || d.order.status === "PAID");
+          const editable = sub.status === "ACTIVE" && !skipped && canChangeDay(d.date, slotStart) && (!d.order || d.order.status === "PAID");
           const opts = optionsByCap.get(d.unitPrice) ?? [];
           const orderStatus = d.order ? STATUS_LABELS[d.order.status] ?? d.order.status : null;
           return (
@@ -76,6 +82,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
                 <div>
                   <p className="font-bold">{formatDateLong(d.date)}</p>
                   <p className={`text-sm ${skipped ? "line-through" : ""}`}>{d.productName}</p>
+                  {sub.address2 && <p className="text-xs font-semibold text-ink-soft">To {labelOf(d.addressNo)}</p>}
                 </div>
                 <span className="text-sm font-semibold text-ink-soft">
                   {skipped ? "Skipped" : d.order && d.order.status !== "PAID" ? orderStatus : sub.status !== "ACTIVE" ? "" : editable ? "You can change this" : past ? "" : "Locked in"}
@@ -112,9 +119,23 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
 
       <section className="mt-6 rounded-3xl bg-crate p-5 text-sm">
         <p className="font-semibold">Delivering to {sub.customerName} · {sub.phone}</p>
-        <p className="text-ink-soft">{addressLine(sub.address)}</p>
-        {sub.address.instructions && <p className="mt-1 text-ink-soft">Note: {sub.address.instructions}</p>}
-        <p className="mt-3">Paid {formatINR(sub.total)}{sub.discount ? ` (saved ${formatINR(sub.discount)})` : ""}. To change the address or time, message us on WhatsApp.</p>
+        {sub.address2 ? (
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            {[{ n: 1, a: sub.address }, { n: 2, a: sub.address2 }].map(({ n, a }) => (
+              <div key={n}>
+                <p className="font-semibold">{labelOf(n)} · {weekdaysFor(n)}</p>
+                <p className="text-ink-soft">{addressLine(a)}</p>
+                {a.instructions && <p className="mt-1 text-ink-soft">Note: {a.instructions}</p>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            <p className="text-ink-soft">{addressLine(sub.address)}</p>
+            {sub.address.instructions && <p className="mt-1 text-ink-soft">Note: {sub.address.instructions}</p>}
+          </>
+        )}
+        <p className="mt-3">Paid {formatINR(sub.total)}{sub.discount ? ` (saved ${formatINR(sub.discount)})` : ""}.</p>
       </section>
       {upcoming.length === 0 && sub.status === "ACTIVE" && (
         <Link href="/plans" className="btn btn-primary mt-6">Start a new plan</Link>

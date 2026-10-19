@@ -57,6 +57,13 @@
       "when": 1792398080631,
       "tag": "0007_subscription_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792400530555,
+      "tag": "0008_weekday_plans_two_addresses",
+      "breakpoints": true
     }
   ]
 }
