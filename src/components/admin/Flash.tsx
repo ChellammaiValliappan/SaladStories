@@ -5,6 +5,10 @@ const MESSAGES: Record<string, string> = {
   refunded: "Refund recorded.",
   upiConfirmed: "Payment confirmed. The order is now in the kitchen queue and the customer has been emailed.",
   upiRejected: "Marked as not received. The customer has been emailed and can pay again.",
+  telegramConnected: "Telegram connected — check your phone for a hello message.",
+  sent_te: "Sent to your Telegram and email.",
+  sent_t: "Sent to your Telegram.",
+  sent_e: "Sent to your email.",
 };
 
 export function Flash({ msg, err }: { msg?: string; err?: string }) {

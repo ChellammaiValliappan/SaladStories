@@ -549,3 +549,52 @@ export async function rejectUpi(form: FormData) {
   await rejectUpiPayment(id, str(form, "reason") || "We couldn't find this payment in our account");
   done(`/admin/orders/${id}`, "upiRejected");
 }
+
+// ---------- alerts & reports ----------
+
+/** Finds the chat of whoever last messaged the bot (the owner), saves it and says hello. */
+export async function connectTelegram() {
+  await requireAdmin();
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) oops("/admin/settings", "Add TELEGRAM_BOT_TOKEN in Netlify first (see the steps on this card).");
+  let chatId = "";
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=100`, { cache: "no-store" });
+    const data = (await res.json()) as { ok: boolean; result?: { message?: { chat?: { id: number; type: string } } }[] };
+    const chats = (data.result ?? []).map((u) => u.message?.chat).filter((c) => c && c.type === "private");
+    chatId = chats.length ? String(chats[chats.length - 1]!.id) : "";
+  } catch {
+    oops("/admin/settings", "Couldn't reach Telegram. Please try again.");
+  }
+  if (!chatId) oops("/admin/settings", "Open your bot in Telegram, tap Start (or send it 'hi'), then tap Connect again.");
+  await db.update(storeSettings).set({ telegramChatId: chatId }).where(eq(storeSettings.id, 1));
+  const { sendTelegram } = await import("@/lib/notify");
+  await sendTelegram(chatId, "✅ Salad Stories is connected. New orders, payments to check, the nightly summary and the weekly backup will arrive here.");
+  done("/admin/settings", "telegramConnected");
+}
+
+export async function sendTestAlert() {
+  await requireAdmin();
+  const { ownerContacts, sendEmail, sendTelegram } = await import("@/lib/notify");
+  const to = await ownerContacts();
+  const text = "🔔 Test alert from Salad Stories. If you can read this, order alerts reach you here.";
+  const [tg, em] = await Promise.all([sendTelegram(to.chatId, text), sendEmail(to.email, "Test alert from Salad Stories", text, `<p>${text}</p>`)]);
+  if (!tg && !em) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first.");
+  done("/admin/settings", `sent_${tg ? "t" : ""}${em ? "e" : ""}`);
+}
+
+export async function sendSummaryNow() {
+  await requireAdmin();
+  const { sendDailySummary } = await import("@/lib/reports");
+  const r = await sendDailySummary();
+  if (!r.telegram && !r.email) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first.");
+  done("/admin/settings", `sent_${r.telegram ? "t" : ""}${r.email ? "e" : ""}`);
+}
+
+export async function sendBackupNow() {
+  await requireAdmin();
+  const { sendOrdersBackup } = await import("@/lib/reports");
+  const r = await sendOrdersBackup();
+  if (!r.telegram && !r.email) oops("/admin/settings", "Nothing was sent. Connect Telegram or set up email first — or use “Download all orders”.");
+  done("/admin/settings", `sent_${r.telegram ? "t" : ""}${r.email ? "e" : ""}`);
+}

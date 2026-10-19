@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
-import { saveSettings } from "../../actions";
+import { connectTelegram, saveSettings, sendBackupNow, sendSummaryNow, sendTestAlert } from "../../actions";
+import { alertChannels } from "@/lib/reports";
 import { Card, Check, Field, PageHead } from "@/components/admin/ui";
 import { Flash } from "@/components/admin/Flash";
 import { SubmitButton } from "@/components/admin/SubmitButton";
@@ -21,6 +22,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <>
       <PageHead title="Settings" />
       <Flash msg={sp.msg} err={sp.err} />
+      <AlertsCard />
       <form action={saveSettings} className="space-y-6">
         <Card title="Ordering">
           <div className="grid gap-4 md:grid-cols-2">
@@ -112,14 +114,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             </div>
           </details>
         </Card>
-        <Card title="Free order alerts on Telegram">
-          <p className="mb-3 text-sm text-ink-soft">
-            Get every paid order on your phone for free. In Telegram, message <b>@BotFather</b> → /newbot and put the bot token in your hosting settings as
-            TELEGRAM_BOT_TOKEN. Then send any message to your new bot, message <b>@userinfobot</b> to get your chat ID, and paste it here.
-            {!process.env.TELEGRAM_BOT_TOKEN && " (Bot token not set yet.)"}
-          </p>
-          <Field label="Telegram chat ID" name="telegramChatId" defaultValue={s.telegramChatId} placeholder="e.g. 123456789" />
-        </Card>
+        <details className="rounded-2xl border border-line bg-white p-5">
+          <summary className="cursor-pointer text-sm font-semibold">Telegram chat ID (filled in for you by “Connect Telegram”)</summary>
+          <Field label="Telegram chat ID" name="telegramChatId" defaultValue={s.telegramChatId} placeholder="e.g. 123456789" className="mt-3" />
+        </details>
         <Card title="Coupon types">
           <p className="mb-3 text-sm text-ink-soft">Switch a whole type of offer on or off without editing each coupon.</p>
           <div className="flex flex-wrap gap-6">
@@ -146,5 +144,88 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <PasswordForm />
       </Card>
     </>
+  );
+}
+
+async function botUsername() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { cache: "no-store", signal: AbortSignal.timeout(3000) });
+    const data = (await res.json()) as { result?: { username?: string } };
+    return data.result?.username ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function Step({ done, children }: { done: boolean; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-2.5">
+      <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold ${done ? "bg-basil text-white" : "bg-crate text-ink-soft"}`}>{done ? "✓" : "•"}</span>
+      <span className={done ? "text-ink-soft" : ""}>{children}</span>
+    </li>
+  );
+}
+
+/** Order alerts (Telegram + email), nightly summary and weekly backup. */
+async function AlertsCard() {
+  const [c, bot] = await Promise.all([alertChannels(), botUsername()]);
+  const ready = c.telegramChat || c.email;
+  return (
+    <Card title="Order alerts & reports" className="mb-6">
+      <p className="text-sm text-ink-soft">
+        You get a message for every new order and every payment to check, a <b>sales summary every night at 10 pm</b>, and a <b>backup of all orders every Monday at 8 am</b> (a spreadsheet file).
+      </p>
+
+      <div className="mt-4 grid gap-5 md:grid-cols-2">
+        <div>
+          <h3 className="font-bold">Telegram (free, instant)</h3>
+          <ol className="mt-2 space-y-2 text-sm">
+            <Step done={c.telegramToken}>
+              In Telegram, open <b>@BotFather</b> → send <code>/newbot</code> → pick a name (e.g. “Salad Stories Alerts”). Copy the token it gives you into Netlify → Environment variables as <code>TELEGRAM_BOT_TOKEN</code>, then redeploy.
+            </Step>
+            <Step done={c.telegramChat}>
+              {bot ? (
+                <>Open <a className="font-semibold text-basil underline" href={`https://t.me/${bot}`} target="_blank" rel="noreferrer">@{bot}</a> and tap <b>Start</b>, then tap <b>Connect Telegram</b> below.</>
+              ) : (
+                <>Open your new bot, tap <b>Start</b>, then tap <b>Connect Telegram</b> below.</>
+              )}
+            </Step>
+          </ol>
+          {c.telegramToken && (
+            <form action={connectTelegram} className="mt-3">
+              <SubmitButton className="btn btn-primary" pendingText="Connecting…">{c.telegramChat ? "Reconnect Telegram" : "Connect Telegram"}</SubmitButton>
+            </form>
+          )}
+        </div>
+
+        <div>
+          <h3 className="font-bold">Email (free with Gmail)</h3>
+          {c.email ? (
+            <p className="mt-2 text-sm">✓ Emails go to <b>{c.ownerEmail}</b>.</p>
+          ) : (
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
+              <li>Turn on 2-Step Verification for your Google account, then open <b>myaccount.google.com/apppasswords</b> and create an app password called “Salad Stories”.</li>
+              <li>
+                In Netlify → Environment variables add: <code>SMTP_HOST</code> = smtp.gmail.com, <code>SMTP_PORT</code> = 465, <code>SMTP_USER</code> = your Gmail address, <code>SMTP_PASS</code> = the 16-letter app password, <code>EMAIL_FROM</code> = Salad Stories &lt;your Gmail address&gt;. Then redeploy.
+              </li>
+              <li>Make sure the <b>Email</b> under Contact details below is where you want alerts.</li>
+            </ol>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
+        {ready && (
+          <>
+            <form action={sendTestAlert}><SubmitButton className="btn btn-ghost" pendingText="Sending…">Send a test alert</SubmitButton></form>
+            <form action={sendSummaryNow}><SubmitButton className="btn btn-ghost" pendingText="Sending…">Send today’s summary now</SubmitButton></form>
+            <form action={sendBackupNow}><SubmitButton className="btn btn-ghost" pendingText="Sending…">Send backup now</SubmitButton></form>
+          </>
+        )}
+        <a href="/api/admin/orders-export?all=1" className="btn btn-ghost">Download all orders (CSV)</a>
+      </div>
+    </Card>
   );
 }

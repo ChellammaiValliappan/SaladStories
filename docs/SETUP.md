@@ -106,8 +106,16 @@ Customers get a confirmation and status updates; you get a copy of every paid or
 
 1. In Telegram, message **@BotFather** → `/newbot` → name it "Salad Stories Orders" → copy the token.
 2. Add it to Netlify as `TELEGRAM_BOT_TOKEN` → trigger a deploy.
-3. Send "hi" to your new bot, then message **@userinfobot** to see your chat ID.
-4. Paste the chat ID in **Admin → Settings → Free order alerts on Telegram**. Every paid order now pings your phone with the items, slot and address.
+3. Open your new bot in Telegram and tap **Start**.
+4. **Admin → Settings → Order alerts & reports → Connect Telegram.** The bot says hello. Every paid order and every payment to check now pings your phone.
+
+### Nightly summary and weekly backup (automatic, free)
+
+Two Netlify scheduled functions (`netlify/functions/`) send to your Telegram and email:
+- **Every night at 10 pm:** today's paid orders and sales, unpaid orders, payments still to check, and tomorrow's dishes to prepare.
+- **Every Monday at 8 am:** a CSV of **every order ever placed** (payments, UTRs, customers) — your off-site backup and payment report.
+
+Buttons on the same card send either one immediately, and **Download all orders (CSV)** works any time. The jobs use `AUTH_SECRET` to call the site (or `CRON_SECRET` if you set one).
 
 *WhatsApp alerts are also supported (see `.env.example`), but Meta's WhatsApp Cloud API charges for business-initiated messages and needs a separate number, so Telegram is the free choice. Customers can still reach you on WhatsApp from the site — add your number in Settings.*
 

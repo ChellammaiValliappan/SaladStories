@@ -64,17 +64,33 @@ function mailer() {
   });
 }
 
-async function sendEmail(to: string, subject: string, text: string, html: string) {
+export const emailConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+
+type Attachment = { filename: string; content: string; contentType?: string };
+
+/** Returns true when the email was handed to the mail server. */
+export async function sendEmail(to: string, subject: string, text: string, html: string, attachments?: Attachment[]) {
   const t = mailer();
   if (!t || !to) {
     console.info(`[email skipped — SMTP not configured] to=${to} subject="${subject}"`);
-    return;
+    return false;
   }
   try {
-    await t.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, text, html });
+    await t.sendMail({ from: process.env.EMAIL_FROM || process.env.SMTP_USER, to, subject, text, html, attachments });
+    return true;
   } catch (err) {
     console.error("[email failed]", err);
+    return false;
   }
+}
+
+/** Where owner alerts and reports go. */
+export async function ownerContacts() {
+  const settings = await getSettings();
+  return {
+    email: process.env.OWNER_EMAIL || settings.email,
+    chatId: process.env.TELEGRAM_CHAT_ID || settings.telegramChatId,
+  };
 }
 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -142,18 +158,39 @@ async function sendWhatsAppText(to: string, body: string) {
 
 // ---------------- Telegram (free) ----------------
 
-async function sendTelegram(chatId: string, text: string) {
+/** Returns true when Telegram accepted the message. */
+export async function sendTelegram(chatId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token || !chatId) return;
+  if (!token || !chatId) return false;
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true }),
     });
     if (!res.ok) console.error("[telegram failed]", res.status, await res.text());
+    return res.ok;
   } catch (err) {
     console.error("[telegram failed]", err);
+    return false;
+  }
+}
+
+/** Sends a file (e.g. the orders backup CSV) to the owner's Telegram. */
+export async function sendTelegramDocument(chatId: string, filename: string, content: string, caption: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !chatId) return false;
+  try {
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("caption", caption.slice(0, 1000));
+    form.append("document", new Blob([content], { type: "text/csv" }), filename);
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: form });
+    if (!res.ok) console.error("[telegram file failed]", res.status, await res.text());
+    return res.ok;
+  } catch (err) {
+    console.error("[telegram file failed]", err);
+    return false;
   }
 }
 
