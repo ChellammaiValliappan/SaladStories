@@ -41,10 +41,30 @@ const TONES: Record<string, string> = {
   UNAVAILABLE: "bg-tomato/15 text-tomato",
   ACTIVE: "bg-basil-soft text-basil-deep",
   PLAN_ACTIVE: "bg-sprout/40 text-basil-deep",
+  TRIAL: "bg-mango/30 text-[#6b4700]",
+  NEW: "bg-crate text-ink-soft",
+  EXPIRED: "bg-tomato/15 text-tomato",
+  PAUSED: "bg-carrot/20 text-[#8a4a00]",
+  PARTIALLY_PAID: "bg-carrot/20 text-[#8a4a00]",
+  PENDING: "bg-mango/30 text-[#6b4700]",
+  RECEIVED: "bg-basil-soft text-basil-deep",
+  PENDING_VERIFICATION: "bg-carrot/20 text-[#8a4a00]",
+  REVERSED: "bg-crate text-ink-soft",
+  HELD: "bg-carrot/20 text-[#8a4a00]",
+  FORFEITED: "bg-tomato/15 text-tomato",
+  SCHEDULED: "bg-basil-soft text-basil-deep",
   COMPLETED: "bg-crate text-ink-soft",
   INACTIVE: "bg-crate text-ink-soft",
 };
-const LABELS: Record<string, string> = { PENDING_PAYMENT: "Awaiting payment", OUT_FOR_DELIVERY: "Out for delivery", VERIFYING: "Check payment", PLAN_ACTIVE: "Plan active" };
+const LABELS: Record<string, string> = {
+  PENDING_PAYMENT: "Awaiting payment",
+  OUT_FOR_DELIVERY: "Out for delivery",
+  VERIFYING: "Check payment",
+  PLAN_ACTIVE: "Plan active",
+  PARTIALLY_PAID: "Partly paid",
+  PENDING_VERIFICATION: "To verify",
+  HELD: "Skip requested",
+};
 
 /** Small tag for plan payments and plan days. */
 export function KindTag({ kind }: { kind?: string | null }) {

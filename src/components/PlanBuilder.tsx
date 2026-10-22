@@ -10,7 +10,7 @@ import { earliestStart, WEEKDAY_NAMES, weekdaysLabel } from "@/lib/plans-core";
 import { addDays } from "@/lib/time";
 import { GPayMark } from "./UpiPay";
 
-type Bowl = { id: string; name: string; image: string | null; accent: string; isVeg: boolean; price: number; priceLarge: number; soldOut: boolean };
+type Bowl = { id: string; name: string; image: string | null; accent: string; isVeg: boolean; premium: boolean; hasLarge: boolean; soldOut: boolean };
 type Address = { house: string; building: string; street: string; area: string; city: string; state: string; pincode: string; landmark: string; instructions: string };
 type CalDay = { date: string; label: string; status: "open" | "closed" | "holiday" | "full" };
 
@@ -53,6 +53,7 @@ export function PlanBuilder(props: {
   slots: { id: string; label: string; start: string }[];
   bowls: Bowl[];
   hasLarge: boolean;
+  surcharges: { premium: number; large: number };
   upi: boolean;
   user: { name: string; email: string; phone: string };
   address: Address | null;
@@ -176,7 +177,7 @@ export function PlanBuilder(props: {
     setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : p.length >= plan.maxDays ? p : [...p, d].sort()));
   }
 
-  const priceOf = (b: Bowl) => (large ? b.priceLarge : b.price);
+  const extraOf = (b: Bowl) => (b.premium && props.surcharges.premium ? ` · premium +${formatINR(props.surcharges.premium)}/day` : "");
   const days = quote?.days ?? [];
   const blockers = quote?.blockers ?? [];
   const formOk =
@@ -324,7 +325,7 @@ export function PlanBuilder(props: {
             {props.hasLarge && (
               <label className="flex items-center gap-2.5 font-semibold">
                 <input type="checkbox" checked={large} onChange={(e) => setLarge(e.target.checked)} className="h-5 w-5 accent-[#1f6b3a]" />
-                Large portions
+                Large portions <span className="font-normal text-ink-soft">(+{formatINR(props.surcharges.large)}/day)</span>
               </label>
             )}
           </div>
@@ -361,7 +362,7 @@ export function PlanBuilder(props: {
                       <div className="relative flex min-h-12 items-center justify-between gap-2 rounded-xl border border-line bg-white px-3 py-2 focus-within:ring-3 focus-within:ring-sprout">
                         <span className={`text-sm font-semibold ${chosen ? "" : "text-ink-soft"}`}>{chosen ? chosen.name : "Pick a bowl…"}</span>
                         <span className="flex shrink-0 items-center gap-1 text-sm text-ink-soft">
-                          {chosen && formatINR(priceOf(chosen))}
+                          {chosen?.premium && props.surcharges.premium > 0 && <span className="rounded-full bg-mango/30 px-2 text-xs font-semibold text-[#6b4700]">+{formatINR(props.surcharges.premium)}</span>}
                           <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4"><path d="M5 7l5 6 5-6" fill="none" stroke="currentColor" strokeWidth="2" /></svg>
                         </span>
                         <select
@@ -374,7 +375,7 @@ export function PlanBuilder(props: {
                           {!d.productId && <option value="">Pick a bowl…</option>}
                           {bowls.map((b) => (
                             <option key={b.id} value={b.id} disabled={b.soldOut}>
-                              {b.name} · {formatINR(priceOf(b))}{b.soldOut ? " (sold out)" : ""}
+                              {b.name}{extraOf(b)}{b.soldOut ? " (sold out)" : ""}
                             </option>
                           ))}
                         </select>
@@ -389,7 +390,8 @@ export function PlanBuilder(props: {
               })}
             </ul>
           )}
-          <p className="mt-3 text-xs text-ink-soft">Bowls come with their usual choices{large ? " in large portions" : ""}. Add spice level or anything to leave out in the kitchen note below.</p>
+          {props.surcharges.premium > 0 && <p className="mt-3 text-xs text-ink-soft">Premium bowls add {formatINR(props.surcharges.premium)} a day to the plan price.</p>}
+          <p className="mt-1 text-xs text-ink-soft">Bowls come with their usual choices{large ? " in large portions" : ""}. Add spice level or anything to leave out in the kitchen note below.</p>
         </Step>
 
         <Step n={3} title="Deliver to">
@@ -470,7 +472,9 @@ export function PlanBuilder(props: {
               {days.length} day{days.length === 1 ? "" : "s"} × {quantity} bowl{quantity === 1 ? "" : "s"}{large ? " · large" : ""} · {quote.slot.label}
             </p>
             <dl className="mt-4 space-y-1.5 text-sm">
-              <div className="flex justify-between"><dt className="text-ink-soft">Bowls</dt><dd className="font-semibold">{formatINR(quote.totals.subtotal)}</dd></div>
+              <div className="flex justify-between"><dt className="text-ink-soft">{plan.name} plan{quantity > 1 ? ` × ${quantity} bowls a day` : ""}</dt><dd className="font-semibold">{formatINR(quote.breakdown.base)}</dd></div>
+              {quote.breakdown.premium > 0 && <div className="flex justify-between"><dt className="text-ink-soft">Premium bowls ({quote.breakdown.premiumDays} day{quote.breakdown.premiumDays === 1 ? "" : "s"})</dt><dd className="font-semibold">+{formatINR(quote.breakdown.premium)}</dd></div>}
+              {quote.breakdown.large > 0 && <div className="flex justify-between"><dt className="text-ink-soft">Large portions</dt><dd className="font-semibold">+{formatINR(quote.breakdown.large)}</dd></div>}
               {quote.savings > 0 && <div className="flex justify-between text-basil"><dt>Plan discount ({plan.discountPercent}%)</dt><dd className="font-semibold">−{formatINR(quote.savings)}</dd></div>}
               <div className="flex justify-between"><dt className="text-ink-soft">Delivery</dt><dd className="font-semibold">{quote.totals.deliveryFee ? formatINR(quote.totals.deliveryFee) : "Free"}</dd></div>
               {quote.totals.tax > 0 && <div className="flex justify-between"><dt className="text-ink-soft">{quote.taxLabel}</dt><dd className="font-semibold">{formatINR(quote.totals.tax)}</dd></div>}

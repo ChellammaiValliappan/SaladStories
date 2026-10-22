@@ -104,6 +104,8 @@ export const products = pgTable("products", {
   prepTimeMins: integer("prep_time_mins"),
   status: text("status").notNull().default("DRAFT"), // DRAFT | PUBLISHED | UNAVAILABLE
   stockStatus: text("stock_status").notNull().default("IN_STOCK"), // IN_STOCK | SOLD_OUT
+  /** Meal-plan tier: PREMIUM bowls add the plan's premium surcharge per day. */
+  planTier: text("plan_tier").notNull().default("STANDARD"), // STANDARD | PREMIUM
   dailyLimit: integer("daily_limit"),
   maxPerOrder: integer("max_per_order"),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -272,6 +274,7 @@ export const orders = pgTable(
     // ORDER (normal) | PLAN (payment for a subscription plan) | PLAN_DAY (one delivery of a plan)
     kind: text("kind").notNull().default("ORDER"),
     subscriptionId: text("subscription_id"),
+    customerId: text("customer_id"),
     upiRef: text("upi_ref"), // UPI transaction ID (UTR) the customer entered
     paymentMethod: text("payment_method"),
     razorpayOrderId: text("razorpay_order_id").unique(),
@@ -360,6 +363,13 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   maxDays: integer("max_days").notNull().default(30),
   discountPercent: integer("discount_percent").notNull().default(0),
   deliveryFeePerDay: integer("delivery_fee_per_day").notNull().default(0), // paise
+  /** Fixed price for plans with a set number of days (paise). */
+  price: integer("price").notNull().default(0),
+  /** Price per day for "pick your days" plans (paise). */
+  pricePerDay: integer("price_per_day").notNull().default(0),
+  premiumSurchargePerDay: integer("premium_surcharge_per_day").notNull().default(0),
+  largeSurchargePerDay: integer("large_surcharge_per_day").notNull().default(0),
+  isTrial: boolean("is_trial").notNull().default(false),
   weekdays: text("weekdays").notNull().default("1,2,3,4,5"), // plan delivery days, 0 = Sunday
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -373,11 +383,23 @@ export const subscriptions = pgTable(
     id: id(),
     number: text("number").notNull().unique(),
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    customerId: text("customer_id"),
+    source: text("source").notNull().default("WEBSITE"), // WEBSITE | ADMIN
     planId: text("plan_id").references(() => subscriptionPlans.id, { onDelete: "set null" }),
     planCode: text("plan_code").notNull(),
     planName: text("plan_name").notNull(),
-    // PENDING_PAYMENT | ACTIVE | COMPLETED | CANCELLED
+    // PENDING_PAYMENT | ACTIVE | PAUSED | COMPLETED | CANCELLED
     status: text("status").notNull().default("PENDING_PAYMENT"),
+    /** Delivery weekdays for this customer ("1,2,3,4,5"); defaults to the plan's. */
+    weekdays: text("weekdays").notNull().default("1,2,3,4,5"),
+    /** Extra deliveries the owner authorised beyond the paid days (with a logged reason). */
+    extraAuthorized: integer("extra_authorized").notNull().default(0),
+    actualEndDate: text("actual_end_date"),
+    // NONE | DUE | RENEWED | NOT_RENEWING
+    renewalStatus: text("renewal_status").notNull().default("NONE"),
+    renewedFromId: text("renewed_from_id"),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    activationNote: text("activation_note").notNull().default(""),
     paymentOrderId: text("payment_order_id"),
     customerName: text("customer_name").notNull(),
     phone: text("phone").notNull(),
@@ -427,12 +449,95 @@ export const subscriptionDays = pgTable(
     /** Price of the bowl paid for this day — the customer can swap to any bowl up to this price. */
     unitPrice: integer("unit_price").notNull(),
     addressNo: integer("address_no").notNull().default(1),
-    // SCHEDULED | SKIPPED
+    /** Date first scheduled (kept when the day is rescheduled). */
+    originalDate: text("original_date"),
+    tier: text("tier").notNull().default("STANDARD"), // STANDARD | PREMIUM — the tier paid for this day
+    // SCHEDULED | HELD (skip requested, waiting for the owner) | FORFEITED | SKIPPED (moved — replaced by another row)
     status: text("status").notNull().default("SCHEDULED"),
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("subscription_days_sub_date_idx").on(t.subscriptionId, t.date)],
+);
+
+/** Business customers — website shoppers and WhatsApp/phone/cash customers alike. */
+export const customers = pgTable(
+  "customers",
+  {
+    id: id(),
+    code: text("code").notNull().unique(), // CUST-0001
+    name: text("name").notNull(),
+    phone: text("phone").notNull(), // 10 digits
+    whatsapp: text("whatsapp").notNull().default(""),
+    email: text("email").notNull().default(""),
+    address: jsonb("address").$type<AddressData>(),
+    preferredSlotId: text("preferred_slot_id").references(() => deliverySlots.id, { onDelete: "set null" }),
+    foodPreferences: text("food_preferences").notNull().default(""),
+    instructions: text("instructions").notNull().default(""),
+    /** Owner override: PAUSED | CANCELLED (otherwise status comes from subscriptions). */
+    manualStatus: text("manual_status"),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    notes: text("notes").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("customers_phone_idx").on(t.phone), index("customers_name_idx").on(t.name)],
+);
+
+/** Append-only money ledger. Amounts are never edited — mistakes are fixed with a reversal or refund row. */
+export const payments = pgTable(
+  "payments",
+  {
+    id: id(),
+    receiptNo: text("receipt_no").notNull().unique(), // RCPT-0001
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    subscriptionId: text("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
+    invoiceId: text("invoice_id"),
+    type: text("type").notNull().default("PAYMENT"), // PAYMENT | REFUND
+    amount: integer("amount").notNull(), // paise, always positive
+    method: text("method").notNull(), // UPI | CASH | BANK | RAZORPAY | OTHER
+    reference: text("reference"), // UTR / Razorpay payment ID / cheque no.
+    // PENDING_VERIFICATION | RECEIVED | FAILED | REVERSED
+    status: text("status").notNull().default("RECEIVED"),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull().defaultNow(),
+    recordedBy: text("recorded_by").notNull().default(""),
+    verifiedBy: text("verified_by"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    reversalOf: text("reversal_of"),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    // The same UTR / gateway payment can't be recorded twice.
+    uniqueIndex("payments_method_reference_idx").on(t.type, t.method, t.reference),
+    index("payments_customer_idx").on(t.customerId),
+    index("payments_subscription_idx").on(t.subscriptionId),
+  ],
+);
+
+/** Gap-free running numbers (customer codes, receipts, invoices). */
+export const counters = pgTable("counters", {
+  key: text("key").primaryKey(),
+  value: integer("value").notNull().default(0),
+});
+
+/** Who changed what, when and why. */
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: id(),
+    entity: text("entity").notNull(), // customer | subscription | day | payment | invoice | expense | plan
+    entityId: text("entity_id").notNull(),
+    action: text("action").notNull(),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    reason: text("reason").notNull().default(""),
+    actorId: text("actor_id"),
+    actorName: text("actor_name").notNull().default("System"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("audit_entity_idx").on(t.entity, t.entityId)],
 );
 
 export const productRelations = relations(products, ({ many, one }) => ({
@@ -446,8 +551,18 @@ export const optionGroupRelations = relations(optionGroups, ({ many, one }) => (
 export const optionChoiceRelations = relations(optionChoices, ({ one }) => ({
   group: one(optionGroups, { fields: [optionChoices.groupId], references: [optionGroups.id] }),
 }));
+export const customerRelations = relations(customers, ({ many }) => ({
+  subscriptions: many(subscriptions),
+  payments: many(payments),
+}));
+export const paymentRelations = relations(payments, ({ one }) => ({
+  customer: one(customers, { fields: [payments.customerId], references: [customers.id] }),
+  subscription: one(subscriptions, { fields: [payments.subscriptionId], references: [subscriptions.id] }),
+}));
 export const subscriptionRelations = relations(subscriptions, ({ many, one }) => ({
   days: many(subscriptionDays),
+  payments: many(payments),
+  customer: one(customers, { fields: [subscriptions.customerId], references: [customers.id] }),
   plan: one(subscriptionPlans, { fields: [subscriptions.planId], references: [subscriptionPlans.id] }),
 }));
 export const subscriptionDayRelations = relations(subscriptionDays, ({ one }) => ({

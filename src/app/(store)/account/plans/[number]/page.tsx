@@ -36,7 +36,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
   const upcoming = scheduled.filter((d) => d.date >= today);
   const [payOrder] = sub.paymentOrderId ? await db.select().from(orders).where(eq(orders.id, sub.paymentOrderId)) : [];
   // Swap choices per price cap (days usually share a few prices).
-  const caps = [...new Set(upcoming.map((d) => d.unitPrice))];
+  const caps = [...new Set(upcoming.map((d) => d.tier))];
   const optionsByCap = new Map(await Promise.all(caps.map(async (c) => [c, await swapOptions(sub, c)] as const)));
   const flash = sp.err ?? (sp.msg ? MESSAGES[sp.msg] ?? sp.msg : null);
 
@@ -65,7 +65,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
 
       {sub.status === "ACTIVE" && (
         <p className="mt-6 rounded-2xl bg-crate p-4 text-sm">
-          Change a day&apos;s bowl or skip a day up to <b>24 hours before delivery</b>. You can swap to any bowl up to that day&apos;s price. A skipped day is added to the end of your plan. Delivery addresses can&apos;t be changed.
+          Change a day&apos;s bowl or skip a day up to <b>24 hours before delivery</b>. You can swap to any bowl of the same kind (premium bowls on premium days). A skipped day is added to the end of your plan. Delivery addresses can&apos;t be changed.
         </p>
       )}
 
@@ -74,7 +74,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
           const skipped = d.status === "SKIPPED";
           const past = d.date < today;
           const editable = sub.status === "ACTIVE" && !skipped && canChangeDay(d.date, slotStart) && (!d.order || d.order.status === "PAID");
-          const opts = optionsByCap.get(d.unitPrice) ?? [];
+          const opts = optionsByCap.get(d.tier) ?? [];
           const orderStatus = d.order ? STATUS_LABELS[d.order.status] ?? d.order.status : null;
           return (
             <li key={d.id} className={`p-4 sm:p-5 ${skipped ? "opacity-60" : ""}`}>
@@ -98,7 +98,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
                     <select id={`swap-${d.id}`} name="productId" defaultValue={d.productId ?? ""} className="field min-h-10 min-w-0 flex-1 py-1.5 text-sm">
                       {opts.map((o) => (
                         <option key={o.id} value={o.id} disabled={!o.ok}>
-                          {o.name}{o.soldOut ? " (sold out)" : !o.ok ? ` (+${formatINR(o.price - d.unitPrice)})` : ""}
+                          {o.name}{o.soldOut ? " (sold out)" : !o.ok ? " (premium — ask us)" : ""}
                         </option>
                       ))}
                     </select>

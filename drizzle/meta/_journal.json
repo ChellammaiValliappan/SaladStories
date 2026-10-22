@@ -64,6 +64,13 @@
       "when": 1792400530555,
       "tag": "0008_weekday_plans_two_addresses",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792650015100,
+      "tag": "0009_customers_payments_ledger",
+      "breakpoints": true
     }
   ]
 }

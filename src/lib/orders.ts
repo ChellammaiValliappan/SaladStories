@@ -167,9 +167,12 @@ export async function createOrder(input: CheckoutInput, userId: string | null): 
             throw new CheckoutError("You've already used this coupon.");
         }
 
+        const { ensureCustomer } = await import("./biz/customers");
+        const customer = await ensureCustomer(tx, { name: input.contact.name, phone: input.contact.phone, email: input.contact.email, address: input.address, userId });
         const [order] = await tx
           .insert(orders)
           .values({
+            customerId: customer.id,
             orderNumber: newOrderNumber(),
             trackingToken: crypto.randomBytes(16).toString("hex"),
             idempotencyKey: input.idempotencyKey,
@@ -285,7 +288,10 @@ export async function startPayment(order: OrderRow, pay: PayOpts, useUpi: boolea
 }
 
 /** Idempotent: safe to call from both the checkout callback and the webhook. */
-export async function markOrderPaid(orderId: string, info: { paymentId: string | null; method?: string | null }) {
+export async function markOrderPaid(
+  orderId: string,
+  info: { paymentId: string | null; method?: string | null; fromLedger?: boolean; actor?: import("./biz/audit").Actor },
+) {
   const changed = await db.transaction(async (tx) => {
     const res = await tx
       .update(orders)
@@ -306,9 +312,14 @@ export async function markOrderPaid(orderId: string, info: { paymentId: string |
   });
   if (changed) {
     const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId), with: { items: true } });
+    // Keep the payments ledger in step (owner-confirmed UPI, Razorpay, simulator).
+    if (order && !info.fromLedger) {
+      const { ledgerForPaidOrder } = await import("./biz/payments");
+      await ledgerForPaidOrder(order, info, info.actor);
+    }
     if (order?.kind === "PLAN" && order.subscriptionId) {
       const { activateSubscription } = await import("./plans");
-      await activateSubscription(order.subscriptionId);
+      await activateSubscription(order.subscriptionId, info.actor, "Paid in full");
     }
     if (order) {
       await notifyNewOrder(order);
@@ -368,6 +379,14 @@ export async function submitUpiPayment(orderId: string, trackingToken: string, u
   // The same transaction ID can't pay for two orders.
   const [dupe] = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.upiRef, ref), ne(orders.id, orderId)));
   if (dupe) throw new CheckoutError("That transaction ID is already linked to another order. Please check it and try again.");
+  const { recordUpiClaim } = await import("./biz/payments");
+  const { BizError } = await import("./biz/customers");
+  try {
+    await recordUpiClaim(db, order, ref);
+  } catch (e) {
+    if (e instanceof BizError) throw new CheckoutError(e.message);
+    throw e;
+  }
 
   const [updated] = await db
     .update(orders)
@@ -386,16 +405,19 @@ export async function submitUpiPayment(orderId: string, trackingToken: string, u
 }
 
 /** Owner saw the money arrive → order becomes Paid and the customer is emailed. */
-export async function confirmUpiPayment(orderId: string) {
+export async function confirmUpiPayment(orderId: string, actor?: import("./biz/audit").Actor) {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
   if (!order) throw new CheckoutError("Order not found.");
-  return markOrderPaid(orderId, { paymentId: order.upiRef ? `UPI ${order.upiRef}` : null, method: "UPI (Google Pay)" });
+  return markOrderPaid(orderId, { paymentId: order.upiRef ? `UPI ${order.upiRef}` : null, method: "UPI (Google Pay)", actor });
 }
 
 /** Owner couldn't find the money → customer is told and can pay again. */
-export async function rejectUpiPayment(orderId: string, reason?: string) {
+export async function rejectUpiPayment(orderId: string, reason?: string, actor?: import("./biz/audit").Actor) {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
   if (!order || order.paymentStatus === "PAID") return;
+  const { failUpiClaims } = await import("./biz/payments");
+  const { SYSTEM } = await import("./biz/audit");
+  await failUpiClaims(orderId, reason || "Payment not received", actor ?? SYSTEM);
   await db.update(orders).set({ paymentStatus: "FAILED", upiRef: null, updatedAt: new Date() }).where(eq(orders.id, orderId));
   await db
     .update(couponRedemptions)

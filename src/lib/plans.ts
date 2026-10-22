@@ -23,7 +23,9 @@ import { checkoutSchema, CheckoutError, newOrderNumber, paymentMode, startPaymen
 import { addDays, dayOfWeek, formatDateLabel, formatDateLong, formatTime, istParts } from "./time";
 import { formatINR } from "./money";
 
-import { addressNoFor, canChangeDay, earliestStart, parseWeekdays, planSelections, planSubtotal, weekdaysLabel } from "./plans-core";
+import { addressNoFor, canChangeDay, earliestStart, parseWeekdays, planSelections, weekdaysLabel } from "./plans-core";
+import { dayValue, planPrice, tierAllows } from "./biz/core";
+import { audit, SYSTEM, type Actor } from "./biz/audit";
 export { canChangeDay, earliestStart, planSelections, weekdaysLabel };
 /** How far ahead plan days can be booked. */
 export const PLAN_HORIZON_DAYS = 120;
@@ -111,10 +113,12 @@ export const planQuoteSchema = z.object({
   /** Second address (optional): its PIN code and which weekdays go there. */
   pincode2: z.string().trim().max(10).optional().nullable(),
   addressByWeekday: z.record(z.string().regex(/^[0-6]$/), z.number().int().min(1).max(2)).default({}),
+  /** Delivery weekdays for this customer (team only); defaults to the plan's. */
+  weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional().nullable(),
 });
 export type PlanQuoteInput = z.infer<typeof planQuoteSchema>;
 
-export async function quotePlan(input: PlanQuoteInput) {
+export async function quotePlan(input: PlanQuoteInput, opts: { team?: boolean } = {}) {
   const settings = await getSettings();
   const blockers: string[] = [];
   const plan = await getPlanByCode(input.planCode);
@@ -124,8 +128,9 @@ export async function quotePlan(input: PlanQuoteInput) {
 
   // Work out the delivery dates on the server.
   let dates: string[] = [];
-  const planDays = parseWeekdays(plan.weekdays);
-  const first = earliestStart(slot.startTime);
+  const planDays = opts.team && input.weekdays?.length ? [...new Set(input.weekdays)].sort((a, b) => a - b) : parseWeekdays(plan.weekdays);
+  // The team can start a plan from tomorrow regardless of the 24-hour rule.
+  const first = opts.team ? addDays(istParts().dateStr, 1) : earliestStart(slot.startTime);
   if (plan.days) {
     const start = input.startDate && input.startDate >= first ? input.startDate : first;
     if (start > addDays(first, PLAN_START_WITHIN_DAYS)) blockers.push(`Plans can start up to ${PLAN_START_WITHIN_DAYS} days ahead.`);
@@ -153,17 +158,24 @@ export async function quotePlan(input: PlanQuoteInput) {
   const days = dates.map((date, i) => {
     const pid = pickFor(date, i);
     const p = pid ? byId.get(pid) : undefined;
-    if (!p) return { date, label: formatDateLong(date), productId: null, productName: "", unitPrice: 0, selections: {} as Selections, summary: "", issue: "Pick a bowl", addressNo: addrOf(date) };
+    if (!p) return { date, label: formatDateLong(date), productId: null, productName: "", tier: "STANDARD", unitPrice: 0, selections: {} as Selections, summary: "", issue: "Pick a bowl", addressNo: addrOf(date) };
     const groups = p.optionGroups as GroupDef[];
     const selections = planSelections(groups, input.large);
-    const price = unitPrice(p.discountPrice ?? p.basePrice, groups, selections);
     const issue = p.status !== "PUBLISHED" ? "No longer on the menu" : p.stockStatus === "SOLD_OUT" ? "Sold out for now — pick another" : null;
-    return { date, label: formatDateLong(date), productId: p.id, productName: p.name, unitPrice: price, selections, summary: selectionSummary(groups, selections), issue, addressNo: addrOf(date) };
+    return { date, label: formatDateLong(date), productId: p.id, productName: p.name, tier: p.planTier, unitPrice: 0, selections, summary: selectionSummary(groups, selections), issue, addressNo: addrOf(date) };
   });
   if (days.some((d) => !d.productId)) blockers.push("Pick a bowl for every day.");
   else if (days.some((d) => d.issue)) blockers.push("Some bowls need changing.");
 
-  const { subtotal, discount: planDiscount } = planSubtotal(days.map((d) => d.unitPrice), input.quantity, plan.discountPercent);
+  // Fixed plan price (or price per day × days) + premium-bowl days + large portions, × bowls per day.
+  const fixedPrice = plan.days ? plan.price : plan.pricePerDay * dates.length;
+  if (fixedPrice <= 0) blockers.push("This plan doesn't have a price yet. Please contact us.");
+  const premiumDays = days.filter((d) => d.tier === "PREMIUM").length;
+  const priceParts = { fixedPrice, days: Math.max(1, dates.length), premiumSurchargePerDay: plan.premiumSurchargePerDay, large: input.large, largeSurchargePerDay: plan.largeSurchargePerDay };
+  const breakdown = planPrice({ ...priceParts, premiumDays, quantity: input.quantity, discountPercent: plan.discountPercent });
+  for (const d of days) d.unitPrice = dayValue(priceParts, d.tier === "PREMIUM");
+  const subtotal = breakdown.subtotal;
+  const planDiscount = breakdown.discount;
   const deliveryFee = plan.deliveryFeePerDay * dates.length;
   const totals = computeTotals({
     subtotal,
@@ -191,7 +203,8 @@ export async function quotePlan(input: PlanQuoteInput) {
   if (settings.deliveryPaused) blockers.push(settings.pausedMessage);
 
   return {
-    plan: { code: plan.code, name: plan.name, days: plan.days, minDays: plan.minDays, maxDays: plan.maxDays, discountPercent: plan.discountPercent, weekdays: planDays },
+    plan: { code: plan.code, name: plan.name, days: plan.days, minDays: plan.minDays, maxDays: plan.maxDays, discountPercent: plan.discountPercent, weekdays: planDays, price: plan.price, pricePerDay: plan.pricePerDay, premiumSurchargePerDay: plan.premiumSurchargePerDay, largeSurchargePerDay: plan.largeSurchargePerDay },
+    breakdown: { ...breakdown, premiumDays },
     slot: { id: slot.id, label: slotLabelOf(slot), start: slot.startTime },
     earliest: first,
     usesSecond,
@@ -248,7 +261,23 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
     if (o) return { ...(await startPaymentAgain(o, pay)), planNumber: existing.number };
   }
 
-  const quote = await quotePlan({ ...input, pincode: input.address.pincode, pincode2: input.address2?.pincode ?? null });
+  const { sub, order } = await createPlanRecords(input, { userId, source: "WEBSITE", actor: { id: userId, name: `${input.contact.name} (customer)` } });
+
+  if (input.saveAddress) {
+    const saved = await db.select({ id: addresses.id }).from(addresses).where(eq(addresses.userId, userId)).limit(1);
+    if (!saved.length)
+      await db.insert(addresses).values({ userId, fullName: input.contact.name, phone: input.contact.phone, ...input.address, isDefault: true });
+  }
+
+  return { ...(await startPayment(order, pay, useUpi)), planNumber: sub.number };
+}
+
+/** Subscription + its days + its payment order, in one transaction. Shared by the website and the admin. */
+export async function createPlanRecords(
+  input: Omit<PlanBuyInput, "acceptedPolicy" | "saveAddress"> & { saveAddress?: boolean },
+  ctx: { userId: string | null; customerId?: string; source: "WEBSITE" | "ADMIN"; actor: Actor; team?: boolean },
+) {
+  const quote = await quotePlan({ ...input, pincode: input.address.pincode, pincode2: input.address2?.pincode ?? null }, { team: ctx.team });
   if (quote.blockers.length) throw new CheckoutError(quote.blockers[0]);
   const days = quote.days;
   const plan = (await getPlanByCode(input.planCode))!;
@@ -261,12 +290,20 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
   // Only keep weekday choices that point at address 2.
   const byWeekday = Object.fromEntries(Object.entries(input.addressByWeekday).filter(([, n]) => second && n === 2));
 
-  const { sub, order } = await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
+    const { ensureCustomer } = await import("./biz/customers");
+    const customerId =
+      ctx.customerId ??
+      (await ensureCustomer(tx, { name: input.contact.name, phone: input.contact.phone, email: input.contact.email, address: input.address, userId: ctx.userId })).id;
+    const userId = ctx.userId;
     const [sub] = await tx
       .insert(subscriptions)
       .values({
         number: newPlanNumber(),
         userId,
+        customerId,
+        source: ctx.source,
+        weekdays: quote.plan.weekdays.join(","),
         planId: plan.id,
         planCode: plan.code,
         planName: plan.name,
@@ -307,6 +344,8 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
         productName: d.productName,
         selections: d.selections,
         unitPrice: d.unitPrice,
+        tier: d.tier,
+        originalDate: d.date,
         addressNo: second ? d.addressNo : 1,
       })),
     );
@@ -317,6 +356,7 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
         trackingToken: crypto.randomBytes(16).toString("hex"),
         idempotencyKey: `plan:${input.idempotencyKey}`,
         userId,
+        customerId,
         kind: "PLAN",
         subscriptionId: sub.id,
         customerName: input.contact.name,
@@ -349,16 +389,12 @@ export async function buyPlan(input: PlanBuyInput, userId: string): Promise<Paym
     });
     await tx.insert(orderEvents).values({ orderId: order.id, status: "PENDING_PAYMENT", note: `Plan ${sub.number} created, waiting for payment` });
     await tx.update(subscriptions).set({ paymentOrderId: order.id }).where(eq(subscriptions.id, sub.id));
-    return { sub, order };
+    await audit(tx, "subscription", sub.id, "created", {
+      after: { number: sub.number, plan: plan.name, days: days.length, start, end, total: quote.totals.total, weekdays: quote.plan.weekdays },
+      actor: ctx.actor,
+    });
+    return { sub: { ...sub, paymentOrderId: order.id }, order, quote };
   });
-
-  if (input.saveAddress) {
-    const saved = await db.select({ id: addresses.id }).from(addresses).where(eq(addresses.userId, userId)).limit(1);
-    if (!saved.length)
-      await db.insert(addresses).values({ userId, fullName: input.contact.name, phone: input.contact.phone, ...input.address, isDefault: true });
-  }
-
-  return { ...(await startPayment(order, pay, useUpi)), planNumber: sub.number };
 }
 
 async function startPaymentAgain(order: typeof orders.$inferSelect, pay: Awaited<ReturnType<typeof paymentMode>>["pay"]) {
@@ -428,7 +464,7 @@ async function createDayOrder(tx: Tx, sub: SubRow, day: DayRow, note: string, su
 }
 
 /** Called once the plan's payment is confirmed: every day becomes a kitchen order. Safe to call twice. */
-export async function activateSubscription(subscriptionId: string) {
+export async function activateSubscription(subscriptionId: string, actor: Actor = SYSTEM, note = "") {
   const pending = await db.select().from(subscriptionDays).where(eq(subscriptionDays.subscriptionId, subscriptionId));
   const texts = new Map((await summariesFor(pending)).map((t, i) => [pending[i].id, t]));
   await db.transaction(async (tx) => {
@@ -444,7 +480,10 @@ export async function activateSubscription(subscriptionId: string) {
       i++;
       if (!day.orderId) await createDayOrder(tx, sub, day, `Plan ${sub.number} · day ${i} of ${days.length}`, texts.get(day.id) ?? "");
     }
-    await tx.update(subscriptions).set({ status: "ACTIVE", updatedAt: new Date() }).where(eq(subscriptions.id, sub.id));
+    if (sub.status === "PENDING_PAYMENT") {
+      await tx.update(subscriptions).set({ status: "ACTIVE", activatedAt: new Date(), activationNote: note, updatedAt: new Date() }).where(eq(subscriptions.id, sub.id));
+      await audit(tx, "subscription", sub.id, "activated", { before: { status: sub.status }, after: { status: "ACTIVE", days: days.length }, reason: note, actor });
+    }
   });
 }
 
@@ -488,7 +527,7 @@ export function subscriptionState(sub: Pick<SubRow, "status" | "endDate">, today
   return { key: sub.status, label: labels[sub.status] ?? sub.status };
 }
 
-type Actor = { userId: string; isTeam: boolean };
+export type ChangeActor = { userId: string; isTeam: boolean; name?: string };
 
 /** Start time of the plan's delivery slot ("12:30"), used for the 24-hour change cut-off. */
 export async function planSlotStart(sub: Pick<SubRow, "slotId">) {
@@ -497,7 +536,7 @@ export async function planSlotStart(sub: Pick<SubRow, "slotId">) {
   return slot?.startTime ?? "00:00";
 }
 
-async function loadForChange(subscriptionId: string, dayId: string, actor: Actor) {
+async function loadForChange(subscriptionId: string, dayId: string, actor: ChangeActor) {
   const sub = await getSubscription(subscriptionId);
   if (!sub || (!actor.isTeam && sub.userId !== actor.userId)) throw new CheckoutError("Plan not found.");
   if (sub.status !== "ACTIVE") throw new CheckoutError(sub.status === "PENDING_PAYMENT" ? "You can change days once the plan is paid." : "This plan isn't active.");
@@ -510,27 +549,29 @@ async function loadForChange(subscriptionId: string, dayId: string, actor: Actor
 }
 
 /** Bowls a day can be swapped to: any bowl that costs the same or less than what was paid for that day. */
-export async function swapOptions(sub: Pick<SubRow, "large">, unitPriceCap: number) {
+/** Bowls a day can be swapped to: same tier or lower (a Standard day can't become Premium without paying the difference). */
+export async function swapOptions(_sub: Pick<SubRow, "large">, paidTier: string) {
   const { getMenu } = await import("./menu");
   const { items } = await getMenu();
   return items
     .filter((p) => p.status === "PUBLISHED")
-    .map((p) => {
-      const groups = p.optionGroups as GroupDef[];
-      const price = unitPrice(p.discountPrice ?? p.basePrice, groups, planSelections(groups, sub.large));
-      return { id: p.id, name: p.name, price, ok: p.stockStatus !== "SOLD_OUT" && price <= unitPriceCap, soldOut: p.stockStatus === "SOLD_OUT" };
-    });
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      tier: p.planTier,
+      ok: p.stockStatus !== "SOLD_OUT" && tierAllows(paidTier, p.planTier),
+      soldOut: p.stockStatus === "SOLD_OUT",
+    }));
 }
 
-export async function changePlanDay(subscriptionId: string, dayId: string, productId: string, actor: Actor) {
+export async function changePlanDay(subscriptionId: string, dayId: string, productId: string, actor: ChangeActor) {
   const { sub, day } = await loadForChange(subscriptionId, dayId, actor);
   const [p] = await getProductsByIds([productId]);
   if (!p || p.status !== "PUBLISHED" || p.stockStatus === "SOLD_OUT") throw new CheckoutError("That bowl isn't available right now.");
   const groups = p.optionGroups as GroupDef[];
   const selections = planSelections(groups, sub.large);
-  const price = unitPrice(p.discountPrice ?? p.basePrice, groups, selections);
-  if (price > day.unitPrice)
-    throw new CheckoutError(`${p.name} costs ${formatINR(price - day.unitPrice)} more than this day's bowl, so it can't be swapped in. Pick one up to ${formatINR(day.unitPrice)}.`);
+  if (!tierAllows(day.tier, p.planTier))
+    throw new CheckoutError(`${p.name} is a premium bowl and this day was booked as standard. Please message us to upgrade it.`);
   await db.transaction(async (tx) => {
     // Keep the paid value as the day's swap limit.
     await tx.update(subscriptionDays).set({ productId: p.id, productName: p.name, selections }).where(eq(subscriptionDays.id, day.id));
@@ -549,17 +590,17 @@ export async function changePlanDay(subscriptionId: string, dayId: string, produ
       });
       await tx.insert(orderEvents).values({ orderId: day.orderId, status: "PAID", note: `Bowl changed from ${day.productName} to ${p.name}${actor.isTeam ? " by the team" : " by the customer"}` });
     }
+    await audit(tx, "day", day.id, "bowl changed", { before: { bowl: day.productName }, after: { bowl: p.name }, actor: { id: actor.userId, name: actor.name ?? (actor.isTeam ? "Team" : "Customer") } });
   });
 }
 
 /** Skip a day: it moves to the next open delivery day after the plan's last day. */
-export async function skipPlanDay(subscriptionId: string, dayId: string, actor: Actor) {
+export async function skipPlanDay(subscriptionId: string, dayId: string, actor: ChangeActor) {
   const { sub, day } = await loadForChange(subscriptionId, dayId, actor);
   const { slot, blackout } = sub.slotId ? await deliveryContext(sub.slotId) : { slot: null, blackout: new Set<string>() };
   if (!slot) throw new CheckoutError("This plan's delivery time is no longer offered. Please contact us.");
   const lastDate = sub.days.reduce((m, d) => (d.date > m ? d.date : m), sub.endDate);
-  const plan = sub.planId ? (await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, sub.planId)))[0] : undefined;
-  const [newDate] = await nextDeliveryDates(slot, blackout, lastDate, 1, parseWeekdays(plan?.weekdays ?? "1,2,3,4,5"), true);
+  const [newDate] = await nextDeliveryDates(slot, blackout, lastDate, 1, parseWeekdays(sub.weekdays), true);
   if (!newDate) throw new CheckoutError("We couldn't find an open day to move this to. Please contact us.");
   const [summary] = await summariesFor([day]);
 
@@ -578,6 +619,8 @@ export async function skipPlanDay(subscriptionId: string, dayId: string, actor: 
         productName: day.productName,
         selections: day.selections,
         unitPrice: day.unitPrice,
+        tier: day.tier,
+        originalDate: day.originalDate ?? day.date,
         // The extra day goes to whichever address that weekday uses.
         addressNo: addressNoFor(newDate, sub.addressByWeekday, !!sub.address2),
       })

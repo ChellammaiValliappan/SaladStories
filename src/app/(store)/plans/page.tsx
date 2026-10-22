@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarCheck, CalendarDays, Repeat, SkipForward } from "lucide-react";
 import { getPlans } from "@/lib/plans";
-import { getMenu } from "@/lib/menu";
 import { formatINR } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -14,16 +13,14 @@ export const metadata: Metadata = {
 const ACCENTS = ["bg-mango/30", "bg-sprout/40", "bg-basil text-white", "bg-carrot/25"];
 
 export default async function PlansPage() {
-  const [plans, { items }] = await Promise.all([getPlans(), getMenu()]);
-  const cheapest = Math.min(...items.filter((p) => p.status === "PUBLISHED").map((p) => p.discountPrice ?? p.basePrice));
+  const plans = (await getPlans()).filter((p) => (p.days ? p.price : p.pricePerDay) > 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-10">
       <p className="font-semibold text-basil">Meal plans</p>
       <h1 className="mt-1 max-w-3xl text-5xl font-[800] text-basil-deep sm:text-6xl">A fresh bowl every working day</h1>
       <p className="mt-4 max-w-2xl text-lg text-ink-soft">
-        Choose a plan, pick any bowl for each day, and we&apos;ll deliver Monday to Friday at the time you choose — to your office, your home, or both. Plans save you up to{" "}
-        {Math.max(0, ...plans.map((p) => p.discountPercent))}% on the menu price.
+        Choose a plan, pick any bowl for each day, and we&apos;ll deliver Monday to Friday at the time you choose — to your office, your home, or both. One simple price per plan.
       </p>
 
       {plans.length === 0 ? (
@@ -32,7 +29,7 @@ export default async function PlansPage() {
         <ul className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {plans.map((p, i) => {
             const dark = ACCENTS[i % ACCENTS.length].includes("text-white");
-            const perDay = Number.isFinite(cheapest) ? Math.round((cheapest * (100 - p.discountPercent)) / 100) : null;
+            const perDay = p.days ? Math.round(p.price / p.days) : p.pricePerDay;
             return (
               <li key={p.id} className={`flex flex-col rounded-[1.75rem] p-6 ${ACCENTS[i % ACCENTS.length]}`}>
                 <div className="flex items-start justify-between gap-2">
@@ -42,14 +39,14 @@ export default async function PlansPage() {
                   )}
                 </div>
                 <p className={`mt-1 font-display text-4xl font-[800] ${dark ? "" : "text-basil-deep"}`}>
-                  {p.days ? `${p.days} days` : `${p.minDays}–${p.maxDays} days`}
+                  {p.days ? formatINR(p.price) : `${formatINR(p.pricePerDay)}/day`}
                 </p>
+                <p className={`font-semibold ${dark ? "text-white/90" : "text-ink-soft"}`}>{p.days ? `${p.days} delivery days` : `${p.minDays}–${p.maxDays} days you pick`}</p>
                 <p className={`mt-3 flex-1 ${dark ? "text-white/85" : "text-ink-soft"}`}>{p.description}</p>
-                {perDay != null && (
-                  <p className={`mt-4 text-sm font-semibold ${dark ? "text-white/90" : ""}`}>
-                    From {formatINR(perDay)} a day{p.deliveryFeePerDay ? ` + ${formatINR(p.deliveryFeePerDay)} delivery` : " · free delivery"}
-                  </p>
-                )}
+                <p className={`mt-4 text-sm font-semibold ${dark ? "text-white/90" : ""}`}>
+                  {formatINR(perDay)} a day{p.deliveryFeePerDay ? ` + ${formatINR(p.deliveryFeePerDay)} delivery` : " · free delivery"}
+                  {p.premiumSurchargePerDay ? ` · premium bowls +${formatINR(p.premiumSurchargePerDay)}/day` : ""}
+                </p>
                 <Link href={`/plans/${p.code.toLowerCase()}`} className={`btn mt-4 ${dark ? "btn-sprout" : "btn-primary"}`}>
                   {p.days ? `Choose ${p.days} bowls` : "Pick your days"}
                 </Link>

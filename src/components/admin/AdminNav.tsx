@@ -13,7 +13,7 @@ const ITEMS = [
   { href: "/admin/products", label: "Menu", icon: UtensilsCrossed, staff: true },
   { href: "/admin/coupons", label: "Coupons", icon: Ticket },
   { href: "/admin/delivery", label: "Delivery", icon: Truck },
-  { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/customers", label: "Customers", icon: Users, staff: true },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
   { href: "/admin/reviews", label: "Reviews", icon: MessageSquareQuote },

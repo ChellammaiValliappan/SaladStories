@@ -30,6 +30,7 @@ import { razorpay, razorpayConfigured } from "@/lib/razorpay";
 import { parseUpiLink, UPI_ID_RE } from "@/lib/upi";
 
 // ---------- helpers ----------
+const actorOf = (u: { id: string; name: string }) => ({ id: u.id, name: u.name });
 const getSettingsRow = async () => (await db.select().from(storeSettings).where(eq(storeSettings.id, 1)))[0];
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 const bool = (f: FormData, k: string) => f.get(k) === "on" || f.get(k) === "true";
@@ -75,7 +76,7 @@ export async function updateOrderStatus(form: FormData) {
 }
 
 export async function refundOrder(form: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const id = str(form, "orderId");
   const [order] = await db.select().from(orders).where(eq(orders.id, id));
   if (!order || order.paymentStatus !== "PAID") oops(`/admin/orders/${id}`, "Only paid orders can be refunded.");
@@ -92,6 +93,23 @@ export async function refundOrder(form: FormData) {
     }
   } else {
     note += " (recorded only — no live payment)";
+  }
+  // Ledger: money going back out.
+  const { recordRefund, ledgerFor } = await import("@/lib/biz/payments");
+  const paidRows = (await ledgerFor({ orderId: id })).rows.filter((r) => r.type === "PAYMENT" && r.status === "RECEIVED");
+  if (order.customerId && paidRows.length) {
+    await recordRefund(
+      {
+        customerId: order.customerId,
+        subscriptionId: order.kind === "PLAN" ? order.subscriptionId : null,
+        orderId: id,
+        amount,
+        method: paidRows[0].method,
+        reference: note.match(/Razorpay (\S+)\)/)?.[1] ?? null,
+        reason: str(form, "reason") || `Refund for order ${order.orderNumber}`,
+      },
+      actorOf(me),
+    ).catch((e) => oops(`/admin/orders/${id}`, e instanceof Error ? e.message : "Couldn't record the refund."));
   }
   await db.update(orders).set({ paymentStatus: "REFUNDED", updatedAt: new Date() }).where(eq(orders.id, id));
   await db.insert(orderEvents).values({ orderId: id, status: "REFUNDED", note });
@@ -157,6 +175,7 @@ export async function saveProduct(form: FormData) {
     prepTimeMins: intOrNull(form, "prepTimeMins"),
     status: str(form, "status") || "DRAFT",
     stockStatus: str(form, "stockStatus") || "IN_STOCK",
+    planTier: str(form, "planTier") === "PREMIUM" ? "PREMIUM" : "STANDARD",
     dailyLimit: intOrNull(form, "dailyLimit"),
     maxPerOrder: intOrNull(form, "maxPerOrder"),
     sortOrder: intOrNull(form, "sortOrder") ?? 0,
@@ -537,16 +556,16 @@ export async function markSlotPreparing(form: FormData) {
 // ---------- Google Pay / UPI payments ----------
 
 export async function confirmUpi(form: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const id = str(form, "orderId");
-  await confirmUpiPayment(id);
+  await confirmUpiPayment(id, actorOf(me));
   done(`/admin/orders/${id}`, "upiConfirmed");
 }
 
 export async function rejectUpi(form: FormData) {
-  await requireAdmin();
+  const me = await requireAdmin();
   const id = str(form, "orderId");
-  await rejectUpiPayment(id, str(form, "reason") || "We couldn't find this payment in our account");
+  await rejectUpiPayment(id, str(form, "reason") || "We couldn't find this payment in our account", actorOf(me));
   done(`/admin/orders/${id}`, "upiRejected");
 }
 
@@ -617,6 +636,8 @@ export async function savePlan(form: FormData) {
   if (minDays < 1 || maxDays > 60 || minDays > maxDays) oops("/admin/plans", "Check the minimum and maximum days (1–60).");
   if (discountPercent < 0 || discountPercent > 50) oops("/admin/plans", "Keep the discount between 0% and 50%.");
   if (!list(form, "weekdays").length) oops("/admin/plans", "Pick at least one delivery day for the plan.");
+  if (days != null ? (paiseOrNull(form, "price") ?? 0) <= 0 : (paiseOrNull(form, "pricePerDay") ?? 0) <= 0)
+    oops("/admin/plans", days != null ? "Enter the plan price." : "Enter the price per day.");
   const data = {
     name,
     description: str(form, "description").slice(0, 200),
@@ -625,6 +646,11 @@ export async function savePlan(form: FormData) {
     maxDays: days ?? maxDays,
     discountPercent,
     deliveryFeePerDay: paiseOrNull(form, "deliveryFeePerDay") ?? 0,
+    price: paiseOrNull(form, "price") ?? 0,
+    pricePerDay: paiseOrNull(form, "pricePerDay") ?? 0,
+    premiumSurchargePerDay: paiseOrNull(form, "premiumSurchargePerDay") ?? 0,
+    largeSurchargePerDay: paiseOrNull(form, "largeSurchargePerDay") ?? 0,
+    isTrial: bool(form, "isTrial"),
     weekdays: list(form, "weekdays").filter((d) => /^[0-6]$/.test(d)).sort().join(","),
     isActive: bool(form, "isActive"),
     sortOrder: intOrNull(form, "sortOrder") ?? 0,

@@ -34,7 +34,7 @@ export default async function PlanBuilderPage({ params }: { params: Promise<{ co
       const base = p.discountPrice ?? p.basePrice;
       const regular = unitPrice(base, groups, planSelections(groups, false));
       const large = unitPrice(base, groups, planSelections(groups, true));
-      return { id: p.id, name: p.name, image: p.image, accent: p.accent, isVeg: p.isVeg, price: regular, priceLarge: large, soldOut: p.stockStatus === "SOLD_OUT" };
+      return { id: p.id, name: p.name, image: p.image, accent: p.accent, isVeg: p.isVeg, premium: p.planTier === "PREMIUM", hasLarge: large > regular, soldOut: p.stockStatus === "SOLD_OUT" };
     });
   const a = saved[0];
   const planDays = parseWeekdays(plan.weekdays);
@@ -56,7 +56,8 @@ export default async function PlanBuilderPage({ params }: { params: Promise<{ co
           plan={{ code: plan.code, name: plan.name, days: plan.days, minDays: plan.minDays, maxDays: plan.maxDays, discountPercent: plan.discountPercent, weekdays: planDays }}
           slots={planSlots.map((s) => ({ id: s.id, label: slotLabelOf(s), start: s.startTime }))}
           bowls={bowls}
-          hasLarge={bowls.some((b) => b.priceLarge > b.price)}
+          hasLarge={plan.largeSurchargePerDay > 0 && bowls.some((b) => b.hasLarge)}
+          surcharges={{ premium: plan.premiumSurchargePerDay, large: plan.largeSurchargePerDay }}
           upi={settings.paymentMode === "UPI"}
           user={{ name: user.name, email: user.email ?? "", phone: user.phone ?? "" }}
           address={

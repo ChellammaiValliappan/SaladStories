@@ -16,7 +16,7 @@ type Product = {
   basePrice: number; discountPrice: number | null; categoryId: string | null; isVeg: boolean; containsEgg: boolean; ingredients: string[];
   portionSize: string; servingInfo: string; proteinG: number | null; calories: number | null; carbsG: number | null; fatG: number | null;
   fibreG: number | null; nutritionVerified: boolean; allergens: string; prepTimeMins: number | null; status: string; stockStatus: string;
-  dailyLimit: number | null; maxPerOrder: number | null; sortOrder: number; featured: boolean;
+  dailyLimit: number | null; maxPerOrder: number | null; sortOrder: number; featured: boolean; planTier: string;
   optionGroups: { id: string; name: string; type: string; required: boolean; minSelect: number; maxSelect: number | null; isActive: boolean;
     choices: { id: string; name: string; priceDelta: number; isDefault: boolean; isActive: boolean; maxQty: number | null }[] }[];
 };
@@ -213,6 +213,7 @@ export function ProductForm({ product, categories }: { product: Product | null; 
           <div className="space-y-4">
             <Select label="Status" name="status" defaultValue={p?.status ?? "DRAFT"} options={[{ value: "DRAFT", label: "Draft (hidden)" }, { value: "PUBLISHED", label: "Published" }, { value: "UNAVAILABLE", label: "Unavailable (shown, can't order)" }]} />
             <Select label="Stock" name="stockStatus" defaultValue={p?.stockStatus ?? "IN_STOCK"} options={[{ value: "IN_STOCK", label: "In stock" }, { value: "SOLD_OUT", label: "Sold out" }]} />
+            <Select label="Meal-plan tier" name="planTier" defaultValue={p?.planTier ?? "STANDARD"} options={[{ value: "STANDARD", label: "Standard (included in plan price)" }, { value: "PREMIUM", label: "Premium (adds the plan's premium charge)" }]} />
             <Field label="Daily limit" name="dailyLimit" type="number" defaultValue={p?.dailyLimit} hint="Max bowls per delivery day. Blank = no limit." />
             <Field label="Max per order" name="maxPerOrder" type="number" defaultValue={p?.maxPerOrder} hint="Blank = no limit." />
             <Field label="Display order" name="sortOrder" type="number" defaultValue={p?.sortOrder ?? 0} hint="Lower numbers appear first." />

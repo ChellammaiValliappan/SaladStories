@@ -1,80 +1,89 @@
-import { requireAdmin } from "@/lib/auth";
-import { desc, eq, max, sql, count, sum } from "drizzle-orm";
-import { db, orders, users } from "@/db";
+import Link from "next/link";
+import { Search, UserPlus } from "lucide-react";
+import { requireStaff } from "@/lib/auth";
+import { listCustomers } from "@/lib/biz/customers";
+import { CUSTOMER_STATUS_LABELS } from "@/lib/biz/core";
 import { formatINR } from "@/lib/money";
-import { setUserBlocked } from "../../actions";
+import { formatDateLong } from "@/lib/time";
 import { Badge, Empty, PageHead, Table } from "@/components/admin/ui";
 import { Flash } from "@/components/admin/Flash";
 
 export const metadata = { title: "Customers" };
 
-export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ msg?: string; err?: string }> }) {
-  await requireAdmin();
-  const sp = await searchParams;
-  // Everyone who has paid for an order, guest or registered, grouped by email.
-  const [buyers, accounts] = await Promise.all([
-    db
-      .select({
-        email: orders.email,
-        name: max(orders.customerName),
-        phone: max(orders.phone),
-        orders: count(),
-        spent: sum(orders.total),
-        last: max(orders.createdAt),
-        hasAccount: sql<boolean>`bool_or(${orders.userId} is not null)`,
-      })
-      .from(orders)
-      .where(eq(orders.paymentStatus, "PAID"))
-      .groupBy(orders.email)
-      .orderBy(desc(max(orders.createdAt)))
-      .limit(300),
-    db.select().from(users).where(eq(users.role, "CUSTOMER")).orderBy(desc(users.createdAt)).limit(300),
-  ]);
+const FILTERS = [
+  { id: "", label: "All" },
+  { id: "ACTIVE", label: "Active" },
+  { id: "TRIAL", label: "Trial" },
+  { id: "DUE", label: "Payment due" },
+  { id: "EXPIRED", label: "Expired" },
+  { id: "PAUSED", label: "Paused" },
+  { id: "NEW", label: "New" },
+  { id: "CANCELLED", label: "Cancelled" },
+];
 
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; msg?: string; err?: string }> }) {
+  const me = await requireStaff();
+  const sp = await searchParams;
+  const rows = await listCustomers({ q: sp.q, status: sp.status });
+  const qs = (status: string) => `/admin/customers?${new URLSearchParams({ ...(sp.q ? { q: sp.q } : {}), ...(status ? { status } : {}) })}`;
   return (
     <>
-      <PageHead title="Customers" />
+      <PageHead title="Customers">
+        {me.role === "ADMIN" && (
+          <Link href="/admin/customers/new" className="btn btn-primary min-h-11 text-sm"><UserPlus className="h-4 w-4" /> Add customer</Link>
+        )}
+      </PageHead>
       <Flash msg={sp.msg} err={sp.err} />
-      <h2 className="mb-3 text-xl font-bold">Paying customers</h2>
-      {buyers.length === 0 ? (
-        <Empty>Customers appear here after their first paid order.</Empty>
+      <form className="mb-3 flex gap-2" role="search">
+        {sp.status && <input type="hidden" name="status" value={sp.status} />}
+        <label className="sr-only" htmlFor="q">Search customers</label>
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+          <input id="q" name="q" defaultValue={sp.q} placeholder="Name, phone or customer ID" className="field pl-9" />
+        </div>
+        <button className="btn btn-ghost">Search</button>
+      </form>
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+        {FILTERS.map((f) => (
+          <Link key={f.id} href={qs(f.id)} className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold ${(sp.status ?? "") === f.id ? "bg-basil text-white" : "bg-white ring-1 ring-line"}`}>{f.label}</Link>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <Empty>{sp.q || sp.status ? "No customers match." : "No customers yet. Add your first one, or they'll appear when someone orders on the website."}</Empty>
       ) : (
-        <Table head={["Customer", "Contact", "Orders", "Total spent", "Last order", "Account"]}>
-          {buyers.map((b) => (
-            <tr key={b.email}>
-              <td className="px-4 py-3 font-semibold">{b.name}</td>
-              <td className="px-4 py-3">{b.phone}<br /><span className="text-ink-soft">{b.email}</span></td>
-              <td className="px-4 py-3">{b.orders}</td>
-              <td className="px-4 py-3 font-semibold">{formatINR(Number(b.spent ?? 0))}</td>
-              <td className="px-4 py-3 text-ink-soft">{b.last ? new Date(b.last).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" }) : ""}</td>
-              <td className="px-4 py-3">{b.hasAccount ? "Registered" : "Guest"}</td>
-            </tr>
-          ))}
-        </Table>
-      )}
-
-      <h2 className="mb-3 mt-8 text-xl font-bold">Registered accounts</h2>
-      {accounts.length === 0 ? (
-        <Empty>No one has created an account yet.</Empty>
-      ) : (
-        <Table head={["Name", "Email", "Phone", "Joined", "Status", ""]}>
-          {accounts.map((u) => (
-            <tr key={u.id}>
-              <td className="px-4 py-3 font-semibold">{u.name}</td>
-              <td className="px-4 py-3">{u.email}</td>
-              <td className="px-4 py-3">{u.phone}</td>
-              <td className="px-4 py-3 text-ink-soft">{new Date(u.createdAt).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}</td>
-              <td className="px-4 py-3"><Badge value={u.isBlocked ? "CANCELLED" : "ACTIVE"} /></td>
-              <td className="px-4 py-3 text-right">
-                <form action={setUserBlocked}>
-                  <input type="hidden" name="id" value={u.id} />
-                  <input type="hidden" name="value" value={String(!u.isBlocked)} />
-                  <button className="rounded-lg px-2.5 py-1.5 text-sm font-semibold hover:bg-crate">{u.isBlocked ? "Unblock" : "Block"}</button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </Table>
+        <>
+          <ul className="space-y-2 sm:hidden">
+            {rows.map((c) => (
+              <li key={c.id}>
+                <Link href={`/admin/customers/${c.id}`} className="block rounded-2xl border border-line bg-white p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold">{c.name}</p>
+                      <p className="text-sm text-ink-soft">{c.code} · {c.phone}</p>
+                    </div>
+                    <Badge value={c.status} />
+                  </div>
+                  {c.current && <p className="mt-2 text-sm">{c.current.planName} plan · until {formatDateLong(c.current.endDate)}</p>}
+                  {c.balance > 0 && <p className="mt-1 text-sm font-semibold text-tomato">Due {formatINR(c.balance)}</p>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden sm:block">
+            <Table head={["Customer", "Phone", "Status", "Current plan", "Due"]}>
+              {rows.map((c) => (
+                <tr key={c.id} className="hover:bg-paper">
+                  <td className="px-4 py-3"><Link href={`/admin/customers/${c.id}`} className="font-bold text-basil hover:underline">{c.name}</Link><br /><span className="text-ink-soft">{c.code}</span></td>
+                  <td className="px-4 py-3">{c.phone}</td>
+                  <td className="px-4 py-3"><Badge value={c.status} /></td>
+                  <td className="px-4 py-3">{c.current ? <>{c.current.planName}<br /><span className="text-ink-soft">until {formatDateLong(c.current.endDate)}</span></> : <span className="text-ink-soft">—</span>}</td>
+                  <td className={`px-4 py-3 font-semibold ${c.balance > 0 ? "text-tomato" : "text-ink-soft"}`}>{c.balance > 0 ? formatINR(c.balance) : "—"}</td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+          <p className="mt-3 text-xs text-ink-soft">{rows.length} customer{rows.length === 1 ? "" : "s"}. Statuses: {Object.values(CUSTOMER_STATUS_LABELS).join(", ")}.</p>
+        </>
       )}
     </>
   );

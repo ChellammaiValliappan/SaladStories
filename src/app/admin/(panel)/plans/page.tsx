@@ -106,7 +106,11 @@ export default async function PlansAdminPage({ searchParams }: { searchParams: P
                 <Field label="Days" name="days" type="number" defaultValue={p ? p.days ?? "" : ""} hint="Blank = customer picks" />
                 <Field label="Min days" name="minDays" type="number" defaultValue={p?.minDays ?? 2} />
                 <Field label="Max days" name="maxDays" type="number" defaultValue={p?.maxDays ?? 30} />
-                <Field label="Discount %" name="discountPercent" type="number" defaultValue={p?.discountPercent ?? 0} />
+                <Field label="Plan price (₹)" name="price" type="number" step="0.01" defaultValue={p ? r(p.price) : ""} hint="For plans with a set number of days" />
+                <Field label="Price per day (₹)" name="pricePerDay" type="number" step="0.01" defaultValue={p ? r(p.pricePerDay) : ""} hint="For pick-your-days plans" />
+                <Field label="Premium bowl extra / day (₹)" name="premiumSurchargePerDay" type="number" step="0.01" defaultValue={p ? r(p.premiumSurchargePerDay) : 30} />
+                <Field label="Large portion extra / day (₹)" name="largeSurchargePerDay" type="number" step="0.01" defaultValue={p ? r(p.largeSurchargePerDay) : 60} hint="0 = no large option" />
+                <Field label="Discount %" name="discountPercent" type="number" defaultValue={p?.discountPercent ?? 0} hint="Optional promo on top" />
                 <Field label="Delivery per day (₹)" name="deliveryFeePerDay" type="number" step="0.01" defaultValue={p ? r(p.deliveryFeePerDay) : 0} hint="0 = free" />
                 <Field label="Order on page" name="sortOrder" type="number" defaultValue={p?.sortOrder ?? plans.length + 1} />
                 <fieldset className="md:col-span-6">
@@ -121,7 +125,10 @@ export default async function PlansAdminPage({ searchParams }: { searchParams: P
                   </div>
                 </fieldset>
                 <div className="flex items-end justify-between gap-3 md:col-span-6">
-                  <Check label="Show on the plans page" name="isActive" defaultChecked={p ? p.isActive : true} />
+                  <div className="flex flex-wrap gap-5">
+                    <Check label="Show on the plans page" name="isActive" defaultChecked={p ? p.isActive : true} />
+                    <Check label="Trial plan" name="isTrial" defaultChecked={p ? p.isTrial : false} />
+                  </div>
                   <SubmitButton className="btn btn-primary">{p ? "Save" : "Add plan"}</SubmitButton>
                 </div>
               </form>
