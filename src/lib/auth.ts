@@ -10,7 +10,7 @@ const COOKIE = "ss_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
 function secret() {
-  const s = process.env.AUTH_SECRET;
+  const s = !!process.env.TEST_DATABASE_URL ? process.env.TEST_AUTH_SECRET : process.env.AUTH_SECRET;
   if (!s || s.length < 16) {
     if (process.env.NODE_ENV === "production") throw new Error("AUTH_SECRET must be set (32+ random characters).");
     return new TextEncoder().encode("dev-only-secret-change-me-please-123");

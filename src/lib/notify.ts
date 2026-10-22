@@ -1,3 +1,4 @@
+import { isTestSite } from "./test-site";
 import "server-only";
 import nodemailer from "nodemailer";
 import { formatINR } from "./money";
@@ -76,6 +77,7 @@ type Attachment = { filename: string; content: string; contentType?: string };
 
 /** Returns true when the email was handed to the mail server. */
 export async function sendEmail(to: string, subject: string, text: string, html: string, attachments?: Attachment[]) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const t = mailer();
   if (!t || !to) {
     console.info(`[email skipped — SMTP not configured] to=${to} subject="${subject}"`);
@@ -128,6 +130,7 @@ function emailHtml(title: string, body: string, o: OrderForNotify) {
 
 /** Meta WhatsApp Cloud API (paid, official). Returns the provider message id, or null. */
 export async function sendWhatsAppText(to: string, body: string): Promise<string | null> {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return null; }
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const digits = to.replace(/\D/g, "");
@@ -175,6 +178,7 @@ export async function sendWhatsAppText(to: string, body: string): Promise<string
  * set CALLMEBOT_APIKEY. Otherwise falls back to the paid Meta Cloud API if set up.
  */
 export async function sendOwnerWhatsApp(text: string) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const key = process.env.CALLMEBOT_APIKEY;
   const settings = await getSettings();
   const phone = (process.env.OWNER_WHATSAPP_NUMBER || settings.whatsapp).replace(/\D/g, "");
@@ -201,6 +205,7 @@ export async function sendOwnerWhatsApp(text: string) {
 
 /** Returns true when Telegram accepted the message. */
 export async function sendTelegram(chatId: string, text: string) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return false;
   try {
@@ -219,6 +224,7 @@ export async function sendTelegram(chatId: string, text: string) {
 
 /** Sends a file (e.g. the orders backup CSV) to the owner's Telegram. */
 export async function sendTelegramDocument(chatId: string, filename: string, content: string, caption: string) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return false;
   try {

@@ -11,6 +11,7 @@ import {
   whatsappCloudConfigured,
 } from "../notify";
 import { pushConfigured, pushToTeam } from "../push";
+import { isTestSite } from "../test-site";
 
 export type Channel = "IN_APP" | "PUSH" | "EMAIL" | "WHATSAPP" | "TELEGRAM";
 export type OutMsg = { channel: Channel; recipient?: string; title: string; body: string; link?: string };
@@ -68,6 +69,9 @@ export async function deliver(row: Row) {
     switch (row.channel) {
       case "IN_APP":
         return mark(row, { status: "SENT", sentAt: new Date(), deliveryConfirmed: true });
+    }
+    if (isTestSite()) return mark(row, { status: "SKIPPED", lastError: "Test site — outside messages are switched off" });
+    switch (row.channel) {
       case "PUSH": {
         if (!pushConfigured()) return mark(row, { status: "SKIPPED", lastError: "Phone notifications not set up" });
         const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(pushSubscriptions);
