@@ -1,8 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { customers, db, subscriptions } from "@/db";
-import { activateSubscription, createPlanRecords } from "../plans";
+import { and, eq, inArray } from "drizzle-orm";
+import { customers, db, subscriptionDays, subscriptions } from "@/db";
+import { activateSubscription, createPlanRecords, quotePlan } from "../plans";
+import { formatDateLong } from "../time";
 import { CheckoutError } from "../orders";
 import { audit, type Actor } from "./audit";
 import { BizError } from "./customers";
@@ -26,6 +27,10 @@ export const adminSubscriptionInput = z.object({
   payment: paymentInput.pick({ amount: true, method: true, reference: true, paidAt: true, status: true, note: true }).optional().nullable(),
   /** Start before full payment — only with a reason (logged). */
   startEarlyReason: z.string().trim().max(200).optional().nullable(),
+  /** Renewal of this earlier plan (marks it renewed). */
+  renewedFromId: z.string().optional().nullable(),
+  /** The owner confirmed two plan deliveries on the same day are intended. */
+  allowOverlap: z.boolean().default(false),
 });
 export type AdminSubscriptionInput = z.input<typeof adminSubscriptionInput>;
 
@@ -46,10 +51,7 @@ export async function createAdminSubscription(input: AdminSubscriptionInput, act
   const rot = std.length ? std : pool;
   const sequence = Array.from({ length: 60 }, (_, i) => d.sequence[i] || rot[i % Math.max(1, rot.length)]?.id || "");
 
-  let created;
-  try {
-    created = await createPlanRecords(
-      {
+  const planInput = {
         idempotencyKey: d.idempotencyKey,
         planCode: d.planCode,
         slotId: d.slotId,
@@ -79,14 +81,43 @@ export async function createAdminSubscription(input: AdminSubscriptionInput, act
         address2: null,
         address2Label: "",
         notes: d.notes,
-      },
-      { userId: c.userId, customerId: c.id, source: "ADMIN", actor, team: true },
-    );
+      };
+
+  let created;
+  try {
+    // Same customer, same day, two plans? Usually a mistake — ask first.
+    if (!d.allowOverlap) {
+      const q = await quotePlan({ ...planInput, pincode: c.address.pincode, pincode2: null }, { team: true });
+      const dates = q.days.map((x) => x.date);
+      if (dates.length) {
+        const clash = await db
+          .select({ date: subscriptionDays.date, number: subscriptions.number })
+          .from(subscriptionDays)
+          .innerJoin(subscriptions, eq(subscriptions.id, subscriptionDays.subscriptionId))
+          .where(and(eq(subscriptions.customerId, c.id), inArray(subscriptions.status, ["ACTIVE", "PENDING_PAYMENT", "PAUSED"]), inArray(subscriptionDays.status, ["SCHEDULED", "HELD"]), inArray(subscriptionDays.date, dates)));
+        if (clash.length) {
+          const list = [...new Set(clash.map((x) => x.date))].sort();
+          throw new BizError(
+            `OVERLAP: ${c.name} already has plan deliveries (${clash[0].number}) on ${list.slice(0, 3).map(formatDateLong).join(", ")}${list.length > 3 ? ` and ${list.length - 3} more days` : ""}. Start the new plan after ${formatDateLong(list[list.length - 1])}, or tick “Two deliveries on the same day is fine”.`,
+          );
+        }
+      }
+    }
+    created = await createPlanRecords(planInput, { userId: c.userId, customerId: c.id, source: "ADMIN", actor, team: true });
   } catch (e) {
     if (e instanceof CheckoutError) throw new BizError(e.message);
     throw e;
   }
   const { sub } = created;
+
+  if (d.renewedFromId) {
+    const [old] = await db.select().from(subscriptions).where(and(eq(subscriptions.id, d.renewedFromId), eq(subscriptions.customerId, c.id)));
+    if (old) {
+      await db.update(subscriptions).set({ renewedFromId: old.id }).where(eq(subscriptions.id, sub.id));
+      await db.update(subscriptions).set({ renewalStatus: "RENEWED", updatedAt: new Date() }).where(eq(subscriptions.id, old.id));
+      await audit(db, "subscription", old.id, "renewed", { before: { renewalStatus: old.renewalStatus }, after: { renewalStatus: "RENEWED", next: sub.number }, actor });
+    }
+  }
 
   if (d.payment && d.payment.amount > 0) {
     await recordPayment({ ...d.payment, customerId: c.id, subscriptionId: sub.id }, actor);

@@ -65,13 +65,14 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
 
       {sub.status === "ACTIVE" && (
         <p className="mt-6 rounded-2xl bg-crate p-4 text-sm">
-          Change a day&apos;s bowl or skip a day up to <b>24 hours before delivery</b>. You can swap to any bowl of the same kind (premium bowls on premium days). A skipped day is added to the end of your plan. Delivery addresses can&apos;t be changed.
+          Change a day&apos;s bowl or ask to skip a day up to <b>24 hours before delivery</b>. You can swap to any bowl of the same kind (premium bowls on premium days). We&apos;ll confirm each skip and tell you the new date — usually it&apos;s added to the end of your plan. Delivery addresses can&apos;t be changed.
         </p>
       )}
 
       <ul className="mt-6 divide-y divide-line rounded-3xl border border-line bg-white">
         {sub.days.map((d) => {
-          const skipped = d.status === "SKIPPED";
+          const skipped = d.status === "SKIPPED" || d.status === "FORFEITED";
+          const held = d.status === "HELD";
           const past = d.date < today;
           const editable = sub.status === "ACTIVE" && !skipped && canChangeDay(d.date, slotStart) && (!d.order || d.order.status === "PAID");
           const opts = optionsByCap.get(d.tier) ?? [];
@@ -85,7 +86,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
                   {sub.address2 && <p className="text-xs font-semibold text-ink-soft">To {labelOf(d.addressNo)}</p>}
                 </div>
                 <span className="text-sm font-semibold text-ink-soft">
-                  {skipped ? "Skipped" : d.order && d.order.status !== "PAID" ? orderStatus : sub.status !== "ACTIVE" ? "" : editable ? "You can change this" : past ? "" : "Locked in"}
+                  {held ? "Skip requested — we'll confirm" : d.status === "FORFEITED" ? "Not delivered" : skipped ? "Moved" : d.order && d.order.status !== "PAID" ? orderStatus : sub.status !== "ACTIVE" ? "" : editable ? "You can change this" : past ? "" : "Locked in"}
                 </span>
               </div>
               {editable && (
@@ -104,12 +105,17 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
                     </select>
                     <SubmitButton className="btn btn-ghost min-h-10 px-4 text-sm" pendingText="Saving…">Swap</SubmitButton>
                   </form>
-                  <form action={skipDay}>
-                    <input type="hidden" name="number" value={sub.number} />
-                    <input type="hidden" name="subscriptionId" value={sub.id} />
-                    <input type="hidden" name="dayId" value={d.id} />
-                    <SubmitButton className="btn btn-ghost min-h-10 px-4 text-sm" pendingText="Skipping…" confirm={`Skip ${formatDateLong(d.date)}? This bowl moves to the end of your plan.`}>Skip day</SubmitButton>
-                  </form>
+                  <details className="w-full">
+                    <summary className="cursor-pointer py-1 text-sm font-semibold text-basil">Can&apos;t take this day?</summary>
+                    <form action={skipDay} className="mt-2 space-y-2">
+                      <input type="hidden" name="number" value={sub.number} />
+                      <input type="hidden" name="subscriptionId" value={sub.id} />
+                      <input type="hidden" name="dayId" value={d.id} />
+                      <label className="label" htmlFor={`why-${d.id}`}>Reason (optional)</label>
+                      <input id={`why-${d.id}`} name="reason" maxLength={200} placeholder="e.g. travelling, working from office" className="field" />
+                      <SubmitButton className="btn btn-ghost min-h-10 px-4 text-sm" pendingText="Sending…">Ask to skip {formatDateLong(d.date)}</SubmitButton>
+                    </form>
+                  </details>
                 </div>
               )}
             </li>

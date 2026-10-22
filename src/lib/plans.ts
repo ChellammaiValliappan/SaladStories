@@ -411,6 +411,7 @@ function dayOrderValues(sub: SubRow, day: DayRow) {
     trackingToken: crypto.randomBytes(16).toString("hex"),
     idempotencyKey: `planday:${day.id}`,
     userId: sub.userId,
+    customerId: sub.customerId,
     kind: "PLAN_DAY",
     subscriptionId: sub.id,
     customerName: sub.customerName,

@@ -2,7 +2,7 @@
  * Salad Stories data model (PostgreSQL via Drizzle ORM).
  * Money is stored as integer paise (₹1 = 100 paise) to avoid rounding errors.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -461,7 +461,8 @@ export const subscriptionDays = pgTable(
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("subscription_days_sub_date_idx").on(t.subscriptionId, t.date)],
+  // One live delivery per plan per day; held, forfeited and moved days don't block a date.
+  (t) => [uniqueIndex("subscription_days_sub_date_idx").on(t.subscriptionId, t.date).where(sql`${t.status} = 'SCHEDULED'`)],
 );
 
 /** Business customers — website shoppers and WhatsApp/phone/cash customers alike. */

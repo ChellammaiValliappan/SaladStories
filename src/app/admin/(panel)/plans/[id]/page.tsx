@@ -5,8 +5,11 @@ import { formatINR } from "@/lib/money";
 import { STATUS_LABELS, addressLine } from "@/lib/notify";
 import { subscriptionState, swapOptions } from "@/lib/plans";
 import { formatDateLong, istParts } from "@/lib/time";
-import { adminSkipPlanDay, adminSwapPlanDay, cancelPlan } from "../../../actions";
-import { startEarlyAction } from "../../../biz-actions";
+import { adminSwapPlanDay, cancelPlan } from "../../../actions";
+import { pauseAction, startEarlyAction } from "../../../biz-actions";
+import { DecisionForm } from "@/components/admin/biz/DecisionForm";
+import { carryForwardPreview, OUTCOME_LABELS, requestsForPlan } from "@/lib/biz/requests";
+import { addDays } from "@/lib/time";
 import { subscriptionSummary } from "@/lib/biz/subscriptions";
 import { PAYMENT_STATUS_LABELS } from "@/lib/biz/core";
 import { historyFor } from "@/lib/biz/history";
@@ -28,7 +31,9 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
   if (!summary) notFound();
   const { sub, stats, money, next, dayNumberOf } = summary;
   const admin = me.role === "ADMIN";
+  const [carry, reqs] = await Promise.all([sub.status === "ACTIVE" ? carryForwardPreview(sub.id) : Promise.resolve(null), requestsForPlan(sub.id)]);
   const history = await historyFor([
+    { entity: "request", ids: reqs.map((r) => r.id) },
     { entity: "subscription", ids: [sub.id] },
     { entity: "day", ids: sub.days.map((d) => d.id) },
     { entity: "payment", ids: money.rows.map((p) => p.id) },
@@ -79,7 +84,7 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
 
       <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
         <Card title="Days">
-          <p className="mb-3 text-sm text-ink-soft">The team can swap or skip any day that the kitchen hasn&apos;t started, even within the customer&apos;s 24-hour cut-off.</p>
+          <p className="mb-3 text-sm text-ink-soft">The team can swap a bowl or skip / move any day the kitchen hasn&apos;t started, even within the customer&apos;s 24-hour cut-off. Every change asks for a reason and is kept in the history.</p>
           <ul className="divide-y divide-line">
             {sub.days.map((d) => {
               const open = sub.status === "ACTIVE" && d.status === "SCHEDULED" && (!d.order || d.order.status === "PAID") && d.date >= today;
@@ -91,9 +96,9 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
                     {d.order && <Link href={`/admin/orders/${d.order.id}`} className="text-xs font-semibold text-basil hover:underline">{d.order.orderNumber}</Link>}
                   </div>
                   <p>
-                    <span className={d.status === "SKIPPED" ? "line-through" : "font-semibold"}>{sub.quantity} × {d.productName}</span>
+                    <span className={d.status === "SKIPPED" || d.status === "FORFEITED" ? "line-through" : "font-semibold"}>{sub.quantity} × {d.productName}</span>
                     {sub.address2 && <span className="ml-2 whitespace-nowrap rounded-full bg-mango/30 px-2 py-0.5 text-xs font-semibold">{d.addressNo === 2 ? sub.address2Label : sub.addressLabel}</span>}
-                    <span className="ml-2 whitespace-nowrap rounded-full bg-crate px-2 py-0.5 text-xs font-semibold text-ink-soft">{d.status === "SKIPPED" ? "Skipped" : d.order ? STATUS_LABELS[d.order.status] ?? d.order.status : "Not paid yet"}</span>
+                    <span className="ml-2 whitespace-nowrap rounded-full bg-crate px-2 py-0.5 text-xs font-semibold text-ink-soft">{d.status === "SKIPPED" ? "Moved" : d.status === "FORFEITED" ? "Forfeited" : d.status === "HELD" ? "Skip requested" : d.order ? STATUS_LABELS[d.order.status] ?? d.order.status : "Not started"}</span>
                   </p>
                   {open && (
                     <div className="flex flex-wrap gap-2 sm:col-start-2">
@@ -107,12 +112,16 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
                         </select>
                         <SubmitButton className="btn btn-ghost min-h-10 px-3 text-sm">Swap</SubmitButton>
                       </form>
-                      <form action={adminSkipPlanDay}>
-                        <input type="hidden" name="subscriptionId" value={sub.id} />
-                        <input type="hidden" name="dayId" value={d.id} />
-                        <SubmitButton className="btn btn-ghost min-h-10 px-3 text-sm" confirm="Skip this day? It moves to the end of the plan.">Skip</SubmitButton>
-                      </form>
+                      <details className="w-full">
+                        <summary className="cursor-pointer py-1 text-sm font-semibold text-basil">Skip / move this day</summary>
+                        <div className="mt-2 rounded-xl bg-crate p-3">
+                          <DecisionForm mode="now" subscriptionId={sub.id} dayId={d.id} suggestedEnd={carry ? formatDateLong(carry) : null} />
+                        </div>
+                      </details>
                     </div>
+                  )}
+                  {d.status === "HELD" && (
+                    <Link href="/admin/requests" className="text-sm font-semibold text-carrot sm:col-start-2">Skip requested — decide in Requests →</Link>
                   )}
                 </li>
               );
@@ -121,6 +130,24 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
         </Card>
 
         <div className="space-y-6">
+          {(sub.status === "ACTIVE" || sub.status === "PAUSED") && (
+            <Card title={sub.status === "PAUSED" ? "Paused" : "Pause"}>
+              <form action={pauseAction} className="space-y-2 text-sm">
+                <input type="hidden" name="subscriptionId" value={sub.id} />
+                <input type="hidden" name="action" value={sub.status === "PAUSED" ? "resume" : "pause"} />
+                <label className="label" htmlFor="pause-date">{sub.status === "PAUSED" ? "Resume deliveries from" : "Pause from"}</label>
+                <input id="pause-date" name="date" type="date" required min={addDays(today, 1)} defaultValue={addDays(today, 1)} className="field" />
+                {sub.status === "ACTIVE" && <input name="reason" required minLength={3} placeholder="Reason (e.g. travelling)" className="field" />}
+                <SubmitButton className="btn btn-ghost w-full">{sub.status === "PAUSED" ? "Resume plan" : "Pause plan"}</SubmitButton>
+                <p className="text-xs text-ink-soft">{sub.status === "PAUSED" ? "Held deliveries go back on the calendar from this date, on the customer's delivery days." : "All deliveries from this date are held off the kitchen sheet until you resume."}</p>
+              </form>
+            </Card>
+          )}
+          {admin && sub.customerId && (sub.status === "COMPLETED" || sub.status === "ACTIVE" || st.key === "COMPLETED") && (
+            <Link href={`/admin/subscriptions/new?customer=${sub.customerId}&renew=${sub.id}`} className={`btn w-full ${sub.renewalStatus === "DUE" || st.key === "COMPLETED" ? "btn-primary" : "btn-ghost"}`}>
+              {sub.renewalStatus === "RENEWED" ? "Renewed — create another plan" : "Renew this plan"}
+            </Link>
+          )}
           <Card title="Money">
             <p className="text-sm">
               Total {formatINR(sub.total)} · received {formatINR(money.net)}
@@ -173,6 +200,20 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
           )}
         </div>
       </div>
+      {reqs.length > 0 && (
+        <Card title="Skips, reschedules and pauses" className="mt-6">
+          <ul className="divide-y divide-line text-sm">
+            {reqs.map((r) => (
+              <li key={r.id} className="py-2">
+                <b>{r.type.charAt(0) + r.type.slice(1).toLowerCase()}</b> {r.originalDate ? formatDateLong(r.originalDate) : ""}
+                {r.finalDate && r.finalDate !== r.originalDate ? ` → ${formatDateLong(r.finalDate)}` : ""} · {r.status === "PENDING" ? <span className="font-semibold text-carrot">waiting for decision</span> : OUTCOME_LABELS[r.outcome ?? ""] ?? r.outcome}
+                {r.endDateBefore && r.endDateAfter && r.endDateBefore !== r.endDateAfter ? <span className="text-ink-soft"> · end {formatDateLong(r.endDateBefore)} → {formatDateLong(r.endDateAfter)}</span> : null}
+                <span className="block text-xs text-ink-soft">{r.reason ? `“${r.reason}” · ` : ""}by {r.requestedBy}{r.decidedBy ? ` · decided by ${r.decidedBy}` : ""}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       <Card title="History" className="mt-6">
         <History rows={history} />
       </Card>

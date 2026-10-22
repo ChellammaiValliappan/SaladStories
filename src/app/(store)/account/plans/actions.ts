@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser, isTeam } from "@/lib/auth";
 import { CheckoutError } from "@/lib/orders";
-import { changePlanDay, skipPlanDay } from "@/lib/plans";
-import { formatDateLong } from "@/lib/time";
+import { changePlanDay } from "@/lib/plans";
+import { BizError } from "@/lib/biz/customers";
+import { requestSkip } from "@/lib/biz/requests";
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -33,14 +34,17 @@ export async function swapDay(form: FormData) {
 }
 
 export async function skipDay(form: FormData) {
-  const a = await actor();
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/account/plans");
   const number = str(form, "number");
-  let moved = "";
   try {
-    moved = await skipPlanDay(str(form, "subscriptionId"), str(form, "dayId"), a);
+    await requestSkip(
+      { subscriptionId: str(form, "subscriptionId"), dayId: str(form, "dayId"), reason: str(form, "reason") || "Customer can't take this day" },
+      { actor: { id: user.id, name: user.name || "Customer" }, customer: !isTeam(user.role), userId: user.id },
+    );
   } catch (e) {
-    if (e instanceof CheckoutError) back(number, `err=${encodeURIComponent(e.message)}`);
+    if (e instanceof BizError || e instanceof CheckoutError) back(number, `err=${encodeURIComponent(e.message)}`);
     throw e;
   }
-  back(number, `msg=${encodeURIComponent(`Skipped. That bowl now comes on ${formatDateLong(moved)}.`)}`);
+  back(number, `msg=${encodeURIComponent("Request sent. That day is on hold — we'll confirm the new date shortly.")}`);
 }

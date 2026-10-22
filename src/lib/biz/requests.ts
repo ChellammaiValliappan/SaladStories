@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, ne, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 import { blackoutDates, db, deliverySlots, orderEvents, orders, scheduleRequests, subscriptionDays, subscriptions, type DB } from "@/db";
 import { addDays, dayOfWeek, formatDateLong, formatTime, istParts } from "../time";
 import { canChangeDay, parseWeekdays } from "../plans-core";
@@ -42,12 +42,19 @@ async function checkDate(sub: { id: string; customerId: string | null; slotId: s
   if (!slot.daysOfWeek.split(",").map(Number).includes(dayOfWeek(date))) throw new BizError(`We don't deliver ${slot.name} on ${formatDateLong(date)}.`);
   const [holiday] = await db.select().from(blackoutDates).where(eq(blackoutDates.date, date));
   if (holiday) throw new BizError(`${formatDateLong(date)} is marked closed${holiday.reason ? ` (${holiday.reason})` : ""}.`);
+  // The same plan can never deliver twice on one day.
+  const [own] = await db
+    .select({ id: subscriptionDays.id })
+    .from(subscriptionDays)
+    .where(and(eq(subscriptionDays.subscriptionId, sub.id), eq(subscriptionDays.date, date), eq(subscriptionDays.status, "SCHEDULED"), opts.ignoreDayId ? ne(subscriptionDays.id, opts.ignoreDayId) : undefined));
+  if (own) throw new BizError(`This plan already has a delivery on ${formatDateLong(date)}. Pick another date.`);
   if (!opts.allowDuplicate && sub.customerId) {
     const [clash] = await db
-      .select({ n: orders.orderNumber })
-      .from(orders)
-      .where(and(eq(orders.customerId, sub.customerId), eq(orders.deliveryDate, date), eq(orders.kind, "PLAN_DAY"), notInArray(orders.status, ["CANCELLED", "HELD"]), opts.ignoreDayId ? ne(orders.id, opts.ignoreDayId) : undefined));
-    if (clash) throw new BizError(`This customer already has a plan delivery on ${formatDateLong(date)}. Tick "allow two deliveries" if that's intended.`);
+      .select({ n: subscriptions.number })
+      .from(subscriptionDays)
+      .innerJoin(subscriptions, eq(subscriptions.id, subscriptionDays.subscriptionId))
+      .where(and(eq(subscriptions.customerId, sub.customerId), eq(subscriptionDays.date, date), eq(subscriptionDays.status, "SCHEDULED"), inArray(subscriptions.status, ["ACTIVE", "PENDING_PAYMENT", "PAUSED"])));
+    if (clash) throw new BizError(`This customer already has a plan delivery on ${formatDateLong(date)} (${clash.n}). Tick "allow two deliveries" if that's intended.`);
   }
   return slot;
 }
@@ -139,7 +146,7 @@ export async function decideRequest(
   let finalDate: string | null = null;
   if (decision.outcome === "RESCHEDULED") {
     if (!decision.date) throw new BizError("Pick the new delivery date.");
-    await checkDate(sub, decision.date, { allowDuplicate: decision.allowDuplicate });
+    await checkDate(sub, decision.date, { allowDuplicate: decision.allowDuplicate, ignoreDayId: day.id });
     finalDate = decision.date;
   } else if (decision.outcome === "CARRIED_FORWARD") {
     finalDate = await nextDayAfterEnd(sub);
@@ -197,6 +204,10 @@ export async function skipNow(
   actor: Actor,
 ) {
   if (d.reason.trim().length < 3) throw new BizError("Add a reason (kept in the plan history).");
+  if (d.outcome === "RESCHEDULED") {
+    if (!d.date) throw new BizError("Pick the new delivery date.");
+    await checkDate(await loadSub(d.subscriptionId), d.date, { allowDuplicate: d.allowDuplicate, ignoreDayId: d.dayId });
+  }
   const req = await requestSkip({ subscriptionId: d.subscriptionId, dayId: d.dayId, reason: d.reason, requestedDate: d.date ?? null }, { actor, customer: false });
   return decideRequest(req.id, { outcome: d.outcome, date: d.date, note: d.reason, allowDuplicate: d.allowDuplicate }, actor);
 }
@@ -287,4 +298,9 @@ export async function requestsForPlan(subscriptionId: string) {
 export async function carryForwardPreview(subscriptionId: string) {
   const sub = await loadSub(subscriptionId);
   return nextDayAfterEnd(sub).catch(() => null);
+}
+
+export async function pendingRequestCount() {
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(scheduleRequests).where(eq(scheduleRequests.status, "PENDING"));
+  return n;
 }

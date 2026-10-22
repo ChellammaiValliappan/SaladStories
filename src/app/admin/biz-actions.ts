@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireStaff } from "@/lib/auth";
 import type { Actor } from "@/lib/biz/audit";
 import { BizError, createCustomer, setCustomerManualStatus, updateCustomer } from "@/lib/biz/customers";
 import { failPayment, recordPayment, recordRefund, reversePayment, verifyPayment } from "@/lib/biz/payments";
@@ -156,4 +156,98 @@ export async function startEarlyAction(form: FormData) {
     fail(`/admin/plans/${id}`, e);
   }
   back(`/admin/plans/${id}`, `msg=${encodeURIComponent("Plan started. Its days are now on the kitchen sheet.")}`);
+}
+
+// ---------- Skip / reschedule / pause ----------
+
+export async function decideRequestAction(form: FormData) {
+  const me = await requireStaff();
+  const returnTo = str(form, "returnTo") || "/admin/requests";
+  const { decideRequest } = await import("@/lib/biz/requests");
+  try {
+    const r = await decideRequest(
+      str(form, "requestId"),
+      { outcome: str(form, "outcome") as never, date: str(form, "date") || null, note: str(form, "note"), allowDuplicate: form.get("allowDuplicate") === "on" },
+      actorOf(me),
+    );
+    back(returnTo, `msg=${encodeURIComponent(r.finalDate ? `Done — delivery on ${r.finalDate}.` : "Done — the day is forfeited.")}`);
+  } catch (e) {
+    fail(returnTo, e);
+  }
+}
+
+export async function skipNowAction(form: FormData) {
+  const me = await requireStaff();
+  const sid = str(form, "subscriptionId");
+  const returnTo = `/admin/plans/${sid}`;
+  const { skipNow } = await import("@/lib/biz/requests");
+  try {
+    await skipNow(
+      { subscriptionId: sid, dayId: str(form, "dayId"), reason: str(form, "reason"), outcome: str(form, "outcome") as never, date: str(form, "date") || null, allowDuplicate: form.get("allowDuplicate") === "on" },
+      actorOf(me),
+    );
+  } catch (e) {
+    fail(returnTo, e);
+  }
+  back(returnTo, `msg=${encodeURIComponent("Day updated. The change and reason are in the history.")}`);
+}
+
+export async function pauseAction(form: FormData) {
+  const me = await requireStaff();
+  const sid = str(form, "subscriptionId");
+  const { pausePlan, resumePlan } = await import("@/lib/biz/requests");
+  try {
+    if (str(form, "action") === "resume") {
+      const dates = await resumePlan(sid, str(form, "date"), actorOf(me));
+      back(`/admin/plans/${sid}`, `msg=${encodeURIComponent(`Resumed — ${dates.length} deliveries back on the calendar.`)}`);
+    }
+    const n = await pausePlan(sid, str(form, "date"), str(form, "reason"), actorOf(me));
+    back(`/admin/plans/${sid}`, `msg=${encodeURIComponent(`Paused — ${n} deliveries held off the kitchen sheet.`)}`);
+  } catch (e) {
+    fail(`/admin/plans/${sid}`, e);
+  }
+}
+
+// ---------- Notifications ----------
+
+export async function markReadAction(form: FormData) {
+  await requireStaff();
+  const { markRead } = await import("@/lib/biz/outbox");
+  const id = str(form, "id");
+  await markRead(id ? [id] : "all");
+  revalidatePath("/admin", "layout");
+  redirect(str(form, "returnTo") || "/admin/notifications");
+}
+
+export async function retryNotificationAction(form: FormData) {
+  await requireAdmin();
+  const { retryOne } = await import("@/lib/biz/outbox");
+  await retryOne(str(form, "id"));
+  back("/admin/notifications", "msg=Tried again.");
+}
+
+/** "Send tomorrow's list now" — runs the same job as 8 pm (sends only once per date). */
+export async function runDailyNowAction(form: FormData) {
+  await requireAdmin();
+  const { runJob, sendTomorrowList } = await import("@/lib/biz/jobs");
+  const date = str(form, "date");
+  const r = await runJob(`daily-orders:${date}`, "daily-orders", () => sendTomorrowList(date));
+  back("/admin/notifications", `msg=${encodeURIComponent(r.ran ? (r.error ? `Failed: ${r.error}` : "Sent.") : "Already sent for that date.")}`);
+}
+
+export async function saveBizSettings(form: FormData) {
+  const me = await requireAdmin();
+  const { db, storeSettings } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  const { audit } = await import("@/lib/biz/audit");
+  const time = str(form, "dailyListTime");
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) back("/admin/settings", "err=Enter the time as HH:MM, e.g. 20:00");
+  const patch = {
+    dailyListTime: time,
+    renewalReminderDays: Math.min(7, Math.max(1, Number(str(form, "renewalReminderDays")) || 1)),
+    customerMessaging: form.get("customerMessaging") === "on",
+  };
+  await db.update(storeSettings).set(patch).where(eq(storeSettings.id, 1));
+  await audit(db, "settings", "1", "alert settings changed", { after: patch, actor: actorOf(me) });
+  back("/admin/settings", "msg=saved");
 }
