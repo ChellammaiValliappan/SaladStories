@@ -69,6 +69,7 @@ function mailer() {
   });
 }
 
+export const whatsappCloudConfigured = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 export const emailConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
 type Attachment = { filename: string; content: string; contentType?: string };
@@ -125,13 +126,14 @@ function emailHtml(title: string, body: string, o: OrderForNotify) {
 
 // ---------------- WhatsApp (Meta Cloud API) ----------------
 
-async function sendWhatsAppText(to: string, body: string) {
+/** Meta WhatsApp Cloud API (paid, official). Returns the provider message id, or null. */
+export async function sendWhatsAppText(to: string, body: string): Promise<string | null> {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const digits = to.replace(/\D/g, "");
   if (!token || !phoneId || !digits) {
     console.info(`[whatsapp skipped — not configured] to=${digits}`);
-    return;
+    return null;
   }
   const template = process.env.WHATSAPP_OWNER_TEMPLATE;
   // Free-form text only reaches numbers that messaged the business in the last 24h.
@@ -155,9 +157,15 @@ async function sendWhatsAppText(to: string, body: string) {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) console.error("[whatsapp failed]", res.status, await res.text());
+    if (!res.ok) {
+      console.error("[whatsapp failed]", res.status, await res.text());
+      return null;
+    }
+    const data = (await res.json().catch(() => ({}))) as { messages?: { id: string }[] };
+    return data.messages?.[0]?.id ?? "sent";
   } catch (err) {
     console.error("[whatsapp failed]", err);
+    return null;
   }
 }
 

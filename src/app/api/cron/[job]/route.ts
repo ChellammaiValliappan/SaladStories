@@ -15,6 +15,10 @@ function authorised(req: Request) {
 export async function POST(req: Request, { params }: { params: Promise<{ job: string }> }) {
   if (!authorised(req)) return Response.json({ error: "Not allowed" }, { status: 401 });
   const { job } = await params;
+  if (job === "tick") {
+    const { tick } = await import("@/lib/biz/jobs");
+    return Response.json(await tick());
+  }
   if (job === "daily-summary") {
     const { activatePaidPlans } = await import("@/lib/plans");
     const healed = await activatePaidPlans().catch(() => 0);
