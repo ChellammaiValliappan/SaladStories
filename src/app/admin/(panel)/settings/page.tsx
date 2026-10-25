@@ -11,7 +11,7 @@ import { PasswordForm } from "@/components/PasswordForm";
 import { PAYMENT_METHODS, parseMethods } from "@/lib/payment-methods";
 import { razorpayConfigured } from "@/lib/razorpay";
 import { QrUpload } from "@/components/admin/QrUpload";
-import { saveBizSettings } from "../../biz-actions";
+import { saveBillingSettings, saveBizSettings } from "../../biz-actions";
 import { formatTime } from "@/lib/time";
 
 export const metadata = { title: "Settings" };
@@ -27,6 +27,26 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <PageHead title="Settings" />
       <Flash msg={sp.msg} err={sp.err} />
       <AlertsCard />
+      <Card title="Invoices & GST" className="mb-6">
+        <form action={saveBillingSettings} className="grid gap-4 md:grid-cols-2">
+          <Field label="Name on invoices" name="legalName" defaultValue={s.legalName} placeholder={s.businessName} hint="Your registered business name, if different." />
+          <Field label="Invoice number prefix" name="invoicePrefix" defaultValue={s.invoicePrefix} hint={`Invoices look like ${s.invoicePrefix || "SS"}/26-27/0001 (by financial year).`} />
+          <div className="space-y-2">
+            <Check label="I'm GST-registered" name="gstRegistered" defaultChecked={s.gstRegistered} hint="Turns invoices into tax invoices with your GSTIN and CGST/SGST (or IGST) lines." />
+            <Field label="GSTIN" name="gstin" defaultValue={s.gstin} placeholder="33ABCDE1234F1Z5" />
+          </div>
+          <Field label="Your state" name="businessState" defaultValue={s.businessState} hint="Customers in the same state get CGST + SGST; others get IGST." />
+          <Field label="Note at the bottom of invoices" name="invoiceTerms" defaultValue={s.invoiceTerms} className="md:col-span-2" />
+          <div className="md:col-span-2">
+            {!s.gstRegistered && s.taxPercent > 0 && (
+              <p className="mb-3 rounded-xl bg-mango/25 p-3 text-sm">
+                Your checkout adds {s.taxLabel} {s.taxPercent}% but GST registration is off. Collecting GST without being registered usually isn&apos;t allowed — check with your accountant, and set the tax rate under Charges to 0 if you aren&apos;t registered.
+              </p>
+            )}
+            <SubmitButton className="btn btn-primary">Save</SubmitButton>
+          </div>
+        </form>
+      </Card>
       <Card title="Daily list & renewal reminders" className="mb-6">
         <form action={saveBizSettings} className="grid gap-4 md:grid-cols-3">
           <div>

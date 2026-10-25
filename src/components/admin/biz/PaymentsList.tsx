@@ -24,6 +24,7 @@ export function PaymentsList({ rows, returnTo, canEdit, names }: { rows: Payment
                 {p.receiptNo} · {when(p.paidAt)}{p.reference ? ` · Ref ${p.reference}` : ""} · by {p.recordedBy}{p.verifiedBy && p.status === "RECEIVED" ? ` · checked by ${p.verifiedBy}` : ""}
               </p>
               {p.note && <p className="text-xs text-ink-soft">{p.note}</p>}
+              {p.status === "RECEIVED" && <a href={`/api/admin/receipts/${p.id}/pdf`} className="text-xs font-semibold text-basil underline">Receipt PDF</a>}
             </div>
             <Badge value={p.status} />
           </div>

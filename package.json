@@ -12,7 +12,7 @@
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
     "setup": "npm run db:migrate && npm run db:seed",
     "vercel-build": "npm run db:migrate && next build",
-    "test:integration": "tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m1.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m2.ts"
+    "test:integration": "tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m1.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m2.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m3.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",
@@ -26,6 +26,7 @@
     "lucide-react": "^1.57.0",
     "next": "^15.5.28",
     "nodemailer": "^10.1.1",
+    "pdf-lib": "^1.17.1",
     "postgres": "^3.4.9",
     "qrcode": "^1.5.4",
     "razorpay": "^2.9.8",

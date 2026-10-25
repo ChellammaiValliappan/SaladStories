@@ -1,3 +1,4 @@
+import { liveInvoice } from "@/lib/biz/invoices";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -39,6 +40,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const plan = order.subscriptionId
     ? (await db.select({ number: subscriptions.number, name: subscriptions.planName }).from(subscriptions).where(eq(subscriptions.id, order.subscriptionId)))[0]
     : undefined;
+  const invoice = paid && !isPlanDay ? await liveInvoice(isPlan && order.subscriptionId ? { subscriptionId: order.subscriptionId } : { orderId: order.id }) : null;
   const step = FLOW.indexOf(order.status);
   const wa = whatsappLink(settings.whatsapp, `Hi! I have a question about my order ${order.orderNumber}.`);
   const reached = (s: string) => events.find((e) => e.status === s);
@@ -175,6 +177,11 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
         )}
         {!isPlan && <ReorderButton items={order.items.map((i) => ({ productId: i.productId, quantity: i.quantity, selections: i.selections }))} />}
       </div>
+      {invoice && (
+        <p className="mt-6 text-center text-sm">
+          <a href={`/invoice/${invoice.publicToken}`} className="font-semibold text-basil underline">View / download invoice {invoice.number}</a>
+        </p>
+      )}
     </div>
   );
 }

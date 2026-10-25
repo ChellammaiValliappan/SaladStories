@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/auth";
 import { getCustomer } from "@/lib/biz/customers";
 import { CUSTOMER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/biz/core";
 import { historyFor } from "@/lib/biz/history";
+import { INVOICE_STATUS_LABELS, listInvoices } from "@/lib/biz/invoices";
 import { subscriptionSummary } from "@/lib/biz/subscriptions";
 import { formatINR } from "@/lib/money";
 import { addressLine } from "@/lib/notify";
@@ -33,6 +34,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
   const { customer: c, status, subscriptions: subs, payments: pays, orders: ords } = data;
   const open = subs.filter((s) => ["ACTIVE", "PAUSED", "PENDING_PAYMENT"].includes(s.status));
   const summaries = (await Promise.all(open.map((s) => subscriptionSummary(s.id)))).filter((x) => x !== null);
+  const invs = admin ? await listInvoices({ customerId: c.id, limit: 50 }) : [];
   const slots = await db.select().from(deliverySlots).where(eq(deliverySlots.isActive, true)).orderBy(asc(deliverySlots.sortOrder));
   const dayIds = subs.length ? (await db.select({ id: subscriptionDays.id }).from(subscriptionDays).where(inArray(subscriptionDays.subscriptionId, subs.map((s) => s.id)))).map((d) => d.id) : [];
   const history = await historyFor([
@@ -105,6 +107,20 @@ export default async function CustomerPage({ params, searchParams }: { params: P
               </details>
             )}
           </Card>
+
+          {invs.length > 0 && (
+            <Card title="Invoices">
+              <ul className="divide-y divide-line text-sm">
+                {invs.map((i) => (
+                  <li key={i.id} className="flex flex-wrap justify-between gap-2 py-2">
+                    <Link href={`/admin/invoices/${i.id}`} className="font-semibold text-basil hover:underline">{i.number}</Link>
+                    <span className="text-ink-soft">{i.kind === "CREDIT_NOTE" ? "Credit note" : INVOICE_STATUS_LABELS[i.status]}</span>
+                    <span className="font-semibold">{i.kind === "CREDIT_NOTE" ? "− " : ""}{formatINR(i.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           {ords.length > 0 && (
             <Card title="One-off orders">

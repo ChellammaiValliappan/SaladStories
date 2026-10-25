@@ -73,7 +73,7 @@ function mailer() {
 export const whatsappCloudConfigured = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 export const emailConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
-type Attachment = { filename: string; content: string; contentType?: string };
+type Attachment = { filename: string; content: string | Buffer; contentType?: string };
 
 /** Returns true when the email was handed to the mail server. */
 export async function sendEmail(to: string, subject: string, text: string, html: string, attachments?: Attachment[]) {

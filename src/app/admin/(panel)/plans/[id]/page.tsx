@@ -6,7 +6,8 @@ import { STATUS_LABELS, addressLine } from "@/lib/notify";
 import { subscriptionState, swapOptions } from "@/lib/plans";
 import { formatDateLong, istParts } from "@/lib/time";
 import { adminSwapPlanDay, cancelPlan } from "../../../actions";
-import { pauseAction, startEarlyAction } from "../../../biz-actions";
+import { pauseAction, reissueInvoiceAction, startEarlyAction } from "../../../biz-actions";
+import { liveInvoice } from "@/lib/biz/invoices";
 import { DecisionForm } from "@/components/admin/biz/DecisionForm";
 import { carryForwardPreview, OUTCOME_LABELS, requestsForPlan } from "@/lib/biz/requests";
 import { addDays } from "@/lib/time";
@@ -31,7 +32,7 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
   if (!summary) notFound();
   const { sub, stats, money, next, dayNumberOf } = summary;
   const admin = me.role === "ADMIN";
-  const [carry, reqs] = await Promise.all([sub.status === "ACTIVE" ? carryForwardPreview(sub.id) : Promise.resolve(null), requestsForPlan(sub.id)]);
+  const [carry, reqs, invoice] = await Promise.all([sub.status === "ACTIVE" ? carryForwardPreview(sub.id) : Promise.resolve(null), requestsForPlan(sub.id), liveInvoice({ subscriptionId: sub.id })]);
   const history = await historyFor([
     { entity: "request", ids: reqs.map((r) => r.id) },
     { entity: "subscription", ids: [sub.id] },
@@ -154,6 +155,19 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
               {money.toVerify ? ` · ${formatINR(money.toVerify)} to verify` : ""}
               {money.due ? <b className="text-tomato"> · due {formatINR(money.due)}</b> : ""}
             </p>
+            {admin && (
+              <div className="mt-2 text-sm">
+                {invoice ? (
+                  <Link href={`/admin/invoices/${invoice.id}`} className="font-semibold text-basil underline">Invoice {invoice.number} →</Link>
+                ) : (
+                  <form action={reissueInvoiceAction} className="inline">
+                    <input type="hidden" name="subscriptionId" value={sub.id} />
+                    <input type="hidden" name="returnTo" value={`/admin/plans/${sub.id}`} />
+                    <SubmitButton className="btn btn-ghost min-h-9 px-3 text-xs">Issue invoice</SubmitButton>
+                  </form>
+                )}
+              </div>
+            )}
             <div className="mt-3"><PaymentsList rows={money.rows} returnTo={`/admin/plans/${sub.id}`} canEdit={admin} /></div>
             {admin && sub.customerId && sub.status !== "CANCELLED" && (
               <details className="mt-3 rounded-2xl bg-crate p-3" open={money.due > 0}>

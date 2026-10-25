@@ -1,3 +1,4 @@
+import { liveInvoice } from "@/lib/biz/invoices";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -34,6 +35,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
   const today = istParts().dateStr;
   const scheduled = sub.days.filter((d) => d.status === "SCHEDULED");
   const upcoming = scheduled.filter((d) => d.date >= today);
+  const invoice = await liveInvoice({ subscriptionId: sub.id });
   const [payOrder] = sub.paymentOrderId ? await db.select().from(orders).where(eq(orders.id, sub.paymentOrderId)) : [];
   // Swap choices per price cap (days usually share a few prices).
   const caps = [...new Set(upcoming.map((d) => d.tier))];
@@ -142,6 +144,7 @@ export default async function ManagePlanPage({ params, searchParams }: { params:
           </>
         )}
         <p className="mt-3">Paid {formatINR(sub.total)}{sub.discount ? ` (saved ${formatINR(sub.discount)})` : ""}.</p>
+        {invoice && <a href={`/invoice/${invoice.publicToken}`} className="mt-2 inline-block font-semibold text-basil underline">View / download invoice {invoice.number}</a>}
       </section>
       {upcoming.length === 0 && sub.status === "ACTIVE" && (
         <Link href="/plans" className="btn btn-primary mt-6">Start a new plan</Link>

@@ -219,6 +219,15 @@ export const storeSettings = pgTable("store_settings", {
   dailyListTime: text("daily_list_time").notNull().default("20:00"), // IST, tomorrow's orders alert
   renewalReminderDays: integer("renewal_reminder_days").notNull().default(1),
   customerMessaging: boolean("customer_messaging").notNull().default(true), // renewal reminders to customers
+  // Billing (M3)
+  legalName: text("legal_name").notNull().default(""), // name printed on invoices (defaults to businessName)
+  gstRegistered: boolean("gst_registered").notNull().default(false),
+  gstin: text("gstin").notNull().default(""),
+  businessState: text("business_state").notNull().default("Tamil Nadu"),
+  invoicePrefix: text("invoice_prefix").notNull().default("SS"),
+  invoiceTerms: text("invoice_terms").notNull().default("Thank you for choosing Salad Stories."),
+  // Finance (M4)
+  openingBalance: integer("opening_balance").notNull().default(0),
 });
 
 // ---------- Coupons ----------
@@ -659,3 +668,50 @@ export const addressRelations = relations(addresses, ({ one }) => ({
   user: one(users, { fields: [addresses.userId], references: [users.id] }),
 }));
 export const categoryRelations = relations(categories, ({ many }) => ({ products: many(products) }));
+
+// ---------- Billing (M3) ----------
+
+export type InvoiceLine = { description: string; qty: number; rate: number; amount: number };
+export type PartySnapshot = { name: string; address: string; phone: string; email: string; gstin?: string; state?: string };
+
+/** Invoices and credit notes. Business/customer details are snapshotted so old invoices never change. */
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: id(),
+    number: text("number").notNull().unique(), // SS/26-27/0001 or CN/26-27/0001
+    kind: text("kind").notNull().default("INVOICE"), // INVOICE | CREDIT_NOTE
+    relatedInvoiceId: text("related_invoice_id"), // credit note → its invoice
+    paymentId: text("payment_id"), // credit note → the refund row
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    subscriptionId: text("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
+    issueDate: text("issue_date").notNull(), // YYYY-MM-DD (IST)
+    dueDate: text("due_date"),
+    lines: jsonb("lines").$type<InvoiceLine[]>().notNull().default([]),
+    subtotal: integer("subtotal").notNull(),
+    discount: integer("discount").notNull().default(0),
+    deliveryFee: integer("delivery_fee").notNull().default(0),
+    tax: integer("tax").notNull().default(0),
+    taxLabel: text("tax_label").notNull().default("GST"),
+    taxPercent: real("tax_percent").notNull().default(0),
+    total: integer("total").notNull(),
+    // ISSUED | PARTIALLY_PAID | PAID | VOID (credit notes: ISSUED)
+    status: text("status").notNull().default("ISSUED"),
+    gstInvoice: boolean("gst_invoice").notNull().default(false), // "Tax invoice" with GSTIN when registered
+    business: jsonb("business").$type<PartySnapshot>().notNull(),
+    customer: jsonb("customer").$type<PartySnapshot>().notNull(),
+    notes: text("notes").notNull().default(""),
+    publicToken: text("public_token").notNull(),
+    voidReason: text("void_reason"),
+    createdBy: text("created_by").notNull().default("System"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("invoices_token_idx").on(t.publicToken),
+    index("invoices_customer_idx").on(t.customerId),
+    // One live invoice per plan and per order.
+    uniqueIndex("invoices_sub_live_idx").on(t.subscriptionId).where(sql`${t.kind} = 'INVOICE' and ${t.status} <> 'VOID' and ${t.subscriptionId} is not null`),
+    uniqueIndex("invoices_order_live_idx").on(t.orderId).where(sql`${t.kind} = 'INVOICE' and ${t.status} <> 'VOID' and ${t.orderId} is not null and ${t.subscriptionId} is null`),
+  ],
+);

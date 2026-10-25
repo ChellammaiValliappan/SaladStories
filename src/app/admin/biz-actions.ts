@@ -251,3 +251,81 @@ export async function saveBizSettings(form: FormData) {
   await audit(db, "settings", "1", "alert settings changed", { after: patch, actor: actorOf(me) });
   back("/admin/settings", "msg=saved");
 }
+
+// ---------- Billing (M3) ----------
+
+export async function voidInvoiceAction(form: FormData) {
+  const me = await requireAdmin();
+  const id = str(form, "id");
+  const { voidInvoice } = await import("@/lib/biz/invoices");
+  try {
+    await voidInvoice(id, str(form, "reason"), actorOf(me));
+  } catch (e) {
+    fail(`/admin/invoices/${id}`, e);
+  }
+  back(`/admin/invoices/${id}`, `msg=${encodeURIComponent("Invoice cancelled. It stays in the list, marked cancelled.")}`);
+}
+
+export async function reissueInvoiceAction(form: FormData) {
+  const me = await requireAdmin();
+  const returnTo = str(form, "returnTo") || "/admin/invoices";
+  const { reissue } = await import("@/lib/biz/invoices");
+  let id = "";
+  try {
+    id = (await reissue({ subscriptionId: str(form, "subscriptionId") || null, orderId: str(form, "orderId") || null }, actorOf(me))).id;
+  } catch (e) {
+    fail(returnTo, e);
+  }
+  back(`/admin/invoices/${id}`, `msg=${encodeURIComponent("Invoice issued.")}`);
+}
+
+export async function issueMissingInvoicesAction() {
+  const me = await requireAdmin();
+  const { issueMissingInvoices } = await import("@/lib/biz/invoices");
+  const r = await issueMissingInvoices(actorOf(me));
+  back("/admin/invoices", `msg=${encodeURIComponent(`Checked: ${r.plans} plans, ${r.orders} orders and ${r.creditNotes} refunds needed paperwork.`)}`);
+}
+
+export async function emailInvoiceAction(form: FormData) {
+  const me = await requireAdmin();
+  const id = str(form, "id");
+  const { getInvoice, invoiceUrl } = await import("@/lib/biz/invoices");
+  const { invoicePdf } = await import("@/lib/biz/invoice-pdf");
+  const { sendEmail } = await import("@/lib/notify");
+  const { audit } = await import("@/lib/biz/audit");
+  const { db } = await import("@/db");
+  const found = await getInvoice(id);
+  if (!found) back("/admin/invoices", "err=Invoice not found.");
+  const { inv, money, related } = found!;
+  const to = str(form, "to") || inv.customer.email;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) back(`/admin/invoices/${id}`, `err=${encodeURIComponent("Add the customer's email address first.")}`);
+  const pdf = Buffer.from(await invoicePdf(inv, money.payments, related, money));
+  const label = inv.kind === "CREDIT_NOTE" ? "Credit note" : "Invoice";
+  const url = await invoiceUrl(inv.publicToken);
+  const text = `Hi ${inv.customer.name.split(" ")[0]},\n\nPlease find your ${inv.business.name} ${label.toLowerCase()} ${inv.number} attached.${money.due && inv.kind === "INVOICE" ? `\nBalance due: ₹${(money.due / 100).toFixed(2)}.` : ""}\n\nView it online: ${url}\n\nThank you!`;
+  const ok = await sendEmail(to, `${label} ${inv.number} from ${inv.business.name}`, text, `<p>${text.replace(/\n/g, "<br>")}</p>`, [{ filename: `${inv.number.replace(/\//g, "-")}.pdf`, content: pdf, contentType: "application/pdf" }]);
+  if (!ok) back(`/admin/invoices/${id}`, `err=${encodeURIComponent("Email isn't set up yet (or the mail server refused). Use the WhatsApp button or download the PDF instead.")}`);
+  await audit(db, "invoice", id, "emailed", { after: { to }, actor: actorOf(me) });
+  back(`/admin/invoices/${id}`, `msg=${encodeURIComponent(`Sent to ${to}.`)}`);
+}
+
+export async function saveBillingSettings(form: FormData) {
+  const me = await requireAdmin();
+  const { db, storeSettings } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  const { audit } = await import("@/lib/biz/audit");
+  const gstRegistered = form.get("gstRegistered") === "on";
+  const gstin = str(form, "gstin").toUpperCase();
+  if (gstRegistered && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(gstin)) back("/admin/settings", `err=${encodeURIComponent("Enter your 15-character GSTIN, e.g. 33ABCDE1234F1Z5.")}`);
+  const patch = {
+    legalName: str(form, "legalName").slice(0, 120),
+    gstRegistered,
+    gstin: gstRegistered ? gstin : "",
+    businessState: str(form, "businessState") || "Tamil Nadu",
+    invoicePrefix: (str(form, "invoicePrefix") || "SS").replace(/[^A-Za-z0-9-]/g, "").slice(0, 8) || "SS",
+    invoiceTerms: str(form, "invoiceTerms").slice(0, 500),
+  };
+  await db.update(storeSettings).set(patch).where(eq(storeSettings.id, 1));
+  await audit(db, "settings", "1", "billing settings changed", { after: patch, actor: actorOf(me) });
+  back("/admin/settings", "msg=saved");
+}

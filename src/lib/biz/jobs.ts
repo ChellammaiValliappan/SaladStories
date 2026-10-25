@@ -133,7 +133,10 @@ export async function tick(now = istParts()) {
   if (now.minutes >= 22 * 60) {
     const { sendDailySummary } = await import("../reports");
     const { activatePaidPlans } = await import("../plans");
-    out.summary = await runJob(`daily-summary:${today}`, "daily-summary", async () => ({ ...(await sendDailySummary(today)), healed: await activatePaidPlans() }));
+    out.summary = await runJob(`daily-summary:${today}`, "daily-summary", async () => {
+      const { issueMissingInvoices } = await import("./invoices");
+      return { ...(await sendDailySummary(today)), healed: await activatePaidPlans(), billing: await issueMissingInvoices() };
+    });
   }
   if (now.dow === 1 && now.minutes >= 8 * 60) {
     const { sendOrdersBackup } = await import("../reports");

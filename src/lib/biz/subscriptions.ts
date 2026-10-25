@@ -124,6 +124,8 @@ export async function createAdminSubscription(input: AdminSubscriptionInput, act
   } else if (d.startEarlyReason && d.startEarlyReason.length >= 3) {
     await startBeforePayment(sub.id, d.startEarlyReason, actor);
   }
+  const { syncBillingSafe } = await import("./invoices");
+  await syncBillingSafe({ subscriptionId: sub.id }, actor);
   const [fresh] = await db.select().from(subscriptions).where(eq(subscriptions.id, sub.id));
   return fresh;
 }
@@ -136,6 +138,8 @@ export async function startBeforePayment(subscriptionId: string, reason: string,
   if (sub.status !== "PENDING_PAYMENT") throw new BizError("This plan has already started.");
   await activateSubscription(sub.id, actor, `Started before full payment: ${reason}`);
   await audit(db, "subscription", sub.id, "started before full payment", { reason, actor });
+  const { syncBillingSafe } = await import("./invoices");
+  await syncBillingSafe({ subscriptionId: sub.id }, actor);
 }
 
 /** Counts and money for one plan: "Day 8 of 22", remaining, paid, due. */

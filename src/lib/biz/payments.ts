@@ -84,6 +84,7 @@ export async function recordPayment(input: PaymentInput, actor: Actor) {
     throw e;
   }
   await afterPaymentChange(p, actor);
+  await billingAfter(p, actor);
   return p;
 }
 
@@ -101,6 +102,7 @@ async function changeStatus(id: string, from: string[], to: string, action: stri
     return after;
   });
   await afterPaymentChange(p, actor);
+  await billingAfter(p, actor);
   return p;
 }
 
@@ -123,7 +125,7 @@ export async function recordRefund(
   const ledger = await ledgerFor({ subscriptionId: d.subscriptionId, orderId: d.subscriptionId ? null : d.orderId });
   if (d.amount > ledger.net) throw new BizError(`You can refund up to ₹${(ledger.net / 100).toFixed(2)} (what was received).`);
   try {
-    return await db.transaction(async (tx) => {
+    const refund = await db.transaction(async (tx) => {
       const row = await insertPayment(tx, {
         customerId: d.customerId,
         subscriptionId: d.subscriptionId ?? null,
@@ -141,6 +143,9 @@ export async function recordRefund(
       await audit(tx, "payment", row.id, "refund recorded", { after: row, reason: d.reason, actor });
       return row;
     });
+    const { creditNoteForRefund } = await import("./invoices");
+    await creditNoteForRefund(refund.id, actor).catch((e) => console.error("[credit note failed]", e));
+    return refund;
   } catch (e) {
     if (isUniqueViolation(e)) throw new BizError("This refund reference is already recorded.");
     throw e;
@@ -258,4 +263,12 @@ export async function ledgerForPaidOrder(o: typeof orders.$inferSelect, info: { 
     // The same gateway payment arriving twice (callback + webhook) is fine.
     if (!isUniqueViolation(e)) throw e;
   });
+  const { syncBillingSafe } = await import("./invoices");
+  await syncBillingSafe(o.kind === "PLAN" && o.subscriptionId ? { subscriptionId: o.subscriptionId } : { orderId: o.id }, actor);
+}
+
+/** Invoice issue / payment link / paid status — never blocks the payment itself. */
+async function billingAfter(p: Payment, actor: Actor) {
+  const { syncBillingSafe } = await import("./invoices");
+  await syncBillingSafe(p.subscriptionId ? { subscriptionId: p.subscriptionId } : { orderId: p.orderId }, actor);
 }

@@ -1,3 +1,4 @@
+import { liveInvoice } from "@/lib/biz/invoices";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
@@ -24,6 +25,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
   const order = await db.query.orders.findFirst({ where: eq(orders.id, id), with: { items: true } });
   if (!order) notFound();
   const me = await getCurrentUser();
+  const invoice = me?.role === "ADMIN" && order.kind === "ORDER" ? await liveInvoice({ orderId: order.id }) : null;
   const events = await db.select().from(orderEvents).where(eq(orderEvents.orderId, id)).orderBy(asc(orderEvents.createdAt));
   const fulfilable = order.paymentStatus === "PAID" || order.paymentStatus === "PLAN";
   const next = fulfilable ? NEXT[order.status] : undefined;
@@ -147,6 +149,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
               {order.razorpayPaymentId && <div className="flex justify-between gap-2"><dt>Payment ID</dt><dd className="truncate">{order.razorpayPaymentId}</dd></div>}
               {order.upiRef && <div className="flex justify-between gap-2"><dt>UPI transaction ID</dt><dd>{order.upiRef}</dd></div>}
             </dl>
+            {invoice && <Link href={`/admin/invoices/${invoice.id}`} className="mt-2 inline-block text-sm font-semibold text-basil underline">Invoice {invoice.number} →</Link>}
             {order.paymentStatus === "PAID" && me?.role === "ADMIN" && (
               <form action={refundOrder} className="mt-4 space-y-2 border-t border-line pt-4">
                 <input type="hidden" name="orderId" value={order.id} />

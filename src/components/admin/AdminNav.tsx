@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChefHat, UserCog, BarChart3, CreditCard, ExternalLink, LayoutDashboard, LogOut, MessageSquareQuote, Package, Settings, Ticket, Truck, Users, UtensilsCrossed, CalendarDays, Bell, CalendarRange, Inbox } from "lucide-react";
+import { ChefHat, UserCog, BarChart3, CreditCard, ExternalLink, LayoutDashboard, LogOut, MessageSquareQuote, Package, Settings, Ticket, Truck, Users, UtensilsCrossed, CalendarDays, Bell, CalendarRange, Inbox, FileText } from "lucide-react";
 import { LogoMark } from "../Logo";
 
 const ITEMS = [
@@ -17,6 +17,7 @@ const ITEMS = [
   { href: "/admin/delivery", label: "Delivery", icon: Truck },
   { href: "/admin/customers", label: "Customers", icon: Users, staff: true },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
+  { href: "/admin/invoices", label: "Invoices", icon: FileText },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
   { href: "/admin/reviews", label: "Reviews", icon: MessageSquareQuote },
   { href: "/admin/team", label: "Team", icon: UserCog },
