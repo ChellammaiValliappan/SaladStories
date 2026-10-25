@@ -1,3 +1,4 @@
+import { isTestSite } from "./test-site";
 import "server-only";
 import webpush from "web-push";
 import { eq, inArray } from "drizzle-orm";
@@ -26,6 +27,7 @@ export type PushMessage = { title: string; body: string; url: string; tag?: stri
 
 /** Sends to every team member's devices (or only one user's). Returns how many devices got it. */
 export async function pushToTeam(msg: PushMessage, onlyUserId?: string) {
+  if (isTestSite()) return 0;
   if (!setup()) return 0;
   const team = onlyUserId
     ? [{ id: onlyUserId }]

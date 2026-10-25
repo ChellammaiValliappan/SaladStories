@@ -682,18 +682,6 @@ export async function adminSwapPlanDay(form: FormData) {
   done(`/admin/plans/${sid}`);
 }
 
-export async function adminSkipPlanDay(form: FormData) {
-  const actor = await teamActor();
-  const { skipPlanDay } = await import("@/lib/plans");
-  const sid = str(form, "subscriptionId");
-  try {
-    await skipPlanDay(sid, str(form, "dayId"), actor);
-  } catch (e) {
-    oops(`/admin/plans/${sid}`, e instanceof Error ? e.message : "Couldn't skip that day.");
-  }
-  done(`/admin/plans/${sid}`, "planSkipped");
-}
-
 export async function cancelPlan(form: FormData) {
   await requireAdmin();
   const { cancelSubscription } = await import("@/lib/plans");

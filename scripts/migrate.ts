@@ -4,7 +4,7 @@ import { migrate as migrateLite } from "drizzle-orm/pglite/migrator";
 import { db } from "../src/db";
 
 async function main() {
-  const url = process.env.DATABASE_URL;
+  const url = (!!process.env.TEST_DATABASE_URL ? process.env.TEST_DATABASE_URL : process.env.DATABASE_URL);
   const opts = { migrationsFolder: "./drizzle" };
   if (url && url.startsWith("postgres")) await migratePg(db, opts);
   else await migrateLite(db as never, opts);

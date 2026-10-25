@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
-import { customers, db, deliverySlots } from "@/db";
+import { customers, db, deliverySlots, subscriptions } from "@/db";
 import { requireAdmin } from "@/lib/auth";
 import { getMenu } from "@/lib/menu";
 import { getPlans, slotLabelOf } from "@/lib/plans";
@@ -12,9 +12,9 @@ import { NewSubscriptionForm } from "@/components/admin/biz/NewSubscriptionForm"
 
 export const metadata = { title: "New plan" };
 
-export default async function NewSubscriptionPage({ searchParams }: { searchParams: Promise<{ customer?: string }> }) {
+export default async function NewSubscriptionPage({ searchParams }: { searchParams: Promise<{ customer?: string; renew?: string }> }) {
   await requireAdmin();
-  const { customer: customerId } = await searchParams;
+  const { customer: customerId, renew: renewId } = await searchParams;
   const [c] = customerId ? await db.select().from(customers).where(eq(customers.id, customerId)) : [];
   if (!c) {
     return (
@@ -30,9 +30,25 @@ export default async function NewSubscriptionPage({ searchParams }: { searchPara
     getMenu(),
   ]);
   const today = istParts().dateStr;
+  const [old] = renewId ? await db.select().from(subscriptions).where(eq(subscriptions.id, renewId)) : [];
+  const renew =
+    old && old.customerId === c.id
+      ? {
+          fromId: old.id,
+          number: old.number,
+          planCode: old.planCode,
+          slotId: old.slotId,
+          weekdays: parseWeekdays(old.weekdays),
+          quantity: old.quantity,
+          large: old.large,
+          // Carry on straight after the old plan's last delivery.
+          startDate: [addDays(old.actualEndDate ?? old.endDate, 1), addDays(today, 1)].sort().pop()!,
+        }
+      : null;
   return (
     <>
-      <PageHead title={`New plan for ${c.name}`} back={{ href: `/admin/customers/${c.id}`, label: c.name }} />
+      <PageHead title={renew ? `Renew ${c.name}'s plan` : `New plan for ${c.name}`} back={{ href: `/admin/customers/${c.id}`, label: c.name }} />
+      {renew && <p className="mb-4 rounded-2xl bg-basil-soft p-4 text-sm">Renewing <Link href={`/admin/plans/${renew.fromId}`} className="font-semibold underline">{renew.number}</Link>. Same delivery days and time are filled in — change anything you need. The old plan is marked renewed once you save.</p>}
       {!c.address?.house || !c.address?.pincode ? (
         <p className="rounded-2xl bg-tomato/10 p-5 font-semibold text-tomato">
           Add {c.name}&apos;s delivery address first. <Link href={`/admin/customers/${c.id}`} className="underline">Edit details</Link>
@@ -48,6 +64,7 @@ export default async function NewSubscriptionPage({ searchParams }: { searchPara
           tomorrow={addDays(today, 1)}
           today={today}
           idempotencyKey={crypto.randomUUID()}
+          renew={renew}
         />
       )}
     </>

@@ -71,6 +71,20 @@
       "when": 1792650015100,
       "tag": "0009_customers_payments_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792650984535,
+      "tag": "0010_daily_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792651898061,
+      "tag": "0011_day_unique_scheduled_only",
+      "breakpoints": true
     }
   ]
 }

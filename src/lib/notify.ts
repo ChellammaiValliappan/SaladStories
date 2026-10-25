@@ -1,3 +1,4 @@
+import { isTestSite } from "./test-site";
 import "server-only";
 import nodemailer from "nodemailer";
 import { formatINR } from "./money";
@@ -69,12 +70,14 @@ function mailer() {
   });
 }
 
+export const whatsappCloudConfigured = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 export const emailConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
 type Attachment = { filename: string; content: string; contentType?: string };
 
 /** Returns true when the email was handed to the mail server. */
 export async function sendEmail(to: string, subject: string, text: string, html: string, attachments?: Attachment[]) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const t = mailer();
   if (!t || !to) {
     console.info(`[email skipped — SMTP not configured] to=${to} subject="${subject}"`);
@@ -125,13 +128,15 @@ function emailHtml(title: string, body: string, o: OrderForNotify) {
 
 // ---------------- WhatsApp (Meta Cloud API) ----------------
 
-async function sendWhatsAppText(to: string, body: string) {
+/** Meta WhatsApp Cloud API (paid, official). Returns the provider message id, or null. */
+export async function sendWhatsAppText(to: string, body: string): Promise<string | null> {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return null; }
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const digits = to.replace(/\D/g, "");
   if (!token || !phoneId || !digits) {
     console.info(`[whatsapp skipped — not configured] to=${digits}`);
-    return;
+    return null;
   }
   const template = process.env.WHATSAPP_OWNER_TEMPLATE;
   // Free-form text only reaches numbers that messaged the business in the last 24h.
@@ -155,9 +160,15 @@ async function sendWhatsAppText(to: string, body: string) {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) console.error("[whatsapp failed]", res.status, await res.text());
+    if (!res.ok) {
+      console.error("[whatsapp failed]", res.status, await res.text());
+      return null;
+    }
+    const data = (await res.json().catch(() => ({}))) as { messages?: { id: string }[] };
+    return data.messages?.[0]?.id ?? "sent";
   } catch (err) {
     console.error("[whatsapp failed]", err);
+    return null;
   }
 }
 
@@ -167,6 +178,7 @@ async function sendWhatsAppText(to: string, body: string) {
  * set CALLMEBOT_APIKEY. Otherwise falls back to the paid Meta Cloud API if set up.
  */
 export async function sendOwnerWhatsApp(text: string) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const key = process.env.CALLMEBOT_APIKEY;
   const settings = await getSettings();
   const phone = (process.env.OWNER_WHATSAPP_NUMBER || settings.whatsapp).replace(/\D/g, "");
@@ -193,6 +205,7 @@ export async function sendOwnerWhatsApp(text: string) {
 
 /** Returns true when Telegram accepted the message. */
 export async function sendTelegram(chatId: string, text: string) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return false;
   try {
@@ -211,6 +224,7 @@ export async function sendTelegram(chatId: string, text: string) {
 
 /** Sends a file (e.g. the orders backup CSV) to the owner's Telegram. */
 export async function sendTelegramDocument(chatId: string, filename: string, content: string, caption: string) {
+  if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return false;
   try {

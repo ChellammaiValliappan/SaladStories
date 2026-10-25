@@ -21,18 +21,21 @@ export function NewSubscriptionForm(props: {
   tomorrow: string;
   today: string;
   idempotencyKey: string;
+  renew?: { fromId: string; number: string; planCode: string; slotId: string | null; weekdays: number[]; quantity: number; large: boolean; startDate: string } | null;
 }) {
   const router = useRouter();
   const available = useMemo(() => props.bowls.filter((b) => !b.soldOut), [props.bowls]);
   const standard = available.filter((b) => !b.premium);
-  const [planCode, setPlanCode] = useState(props.plans.find((p) => p.isTrial)?.code ?? props.plans[0]?.code ?? "");
+  const [planCode, setPlanCode] = useState((props.renew && props.plans.some((p) => p.code === props.renew!.planCode) ? props.renew.planCode : null) ?? props.plans.find((p) => !p.isTrial && props.renew)?.code ?? props.plans.find((p) => p.isTrial)?.code ?? props.plans[0]?.code ?? "");
   const plan = props.plans.find((p) => p.code === planCode)!;
-  const [slotId, setSlotId] = useState(props.customer.preferredSlotId ?? props.slots[0]?.id ?? "");
-  const [startDate, setStartDate] = useState(props.tomorrow);
-  const [weekdays, setWeekdays] = useState<number[]>(plan?.weekdays ?? [1, 2, 3, 4, 5]);
+  const [slotId, setSlotId] = useState(props.renew?.slotId ?? props.customer.preferredSlotId ?? props.slots[0]?.id ?? "");
+  const [startDate, setStartDate] = useState(props.renew?.startDate ?? props.tomorrow);
+  const [weekdays, setWeekdays] = useState<number[]>(props.renew?.weekdays ?? plan?.weekdays ?? [1, 2, 3, 4, 5]);
+  const [allowOverlap, setAllowOverlap] = useState(false);
+  const firstPlanEffect = useRef(true);
   const [count, setCount] = useState(plan?.minDays ?? 5);
-  const [quantity, setQuantity] = useState(1);
-  const [large, setLarge] = useState(false);
+  const [quantity, setQuantity] = useState(props.renew?.quantity ?? 1);
+  const [large, setLarge] = useState(props.renew?.large ?? false);
   const [fill, setFill] = useState<string>("mix");
   const [seq, setSeq] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
@@ -50,6 +53,13 @@ export function NewSubscriptionForm(props: {
 
   // Picking a plan resets its default delivery days.
   useEffect(() => {
+    // A renewal keeps the customer's delivery days on first load.
+    if (firstPlanEffect.current && props.renew) {
+      firstPlanEffect.current = false;
+      if (plan) setCount(plan.minDays);
+      return;
+    }
+    firstPlanEffect.current = false;
     if (plan) {
       setWeekdays(plan.weekdays);
       setCount(plan.minDays);
@@ -138,6 +148,8 @@ export function NewSubscriptionForm(props: {
       notes,
       payment: payMode === "now" ? { amount: Math.round(Number(amount) * 100), method: method as never, reference: reference || null, paidAt, status: "RECEIVED", note: "" } : null,
       startEarlyReason: payMode === "early" ? earlyReason : null,
+      renewedFromId: props.renew?.fromId ?? null,
+      allowOverlap,
     });
     setBusy(false);
     if (res.error) return setError(res.error);
@@ -304,7 +316,13 @@ export function NewSubscriptionForm(props: {
             {blockers.map((b) => <li key={b} className="flex gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {b}</li>)}
           </ul>
         )}
-        {error && <p className="mt-3 text-sm font-semibold text-tomato" role="alert">{error}</p>}
+        {error && <p className="mt-3 text-sm font-semibold text-tomato" role="alert">{error.replace(/^OVERLAP: /, "")}</p>}
+        {(error.startsWith("OVERLAP") || allowOverlap) && (
+          <label className="mt-2 flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1 h-4 w-4 accent-basil" checked={allowOverlap} onChange={(e) => setAllowOverlap(e.target.checked)} />
+            <span>Two deliveries on the same day is fine (e.g. a second plan for a family member)</span>
+          </label>
+        )}
         <button type="button" onClick={save} disabled={!canSave} className="btn btn-primary mt-4 h-12 w-full">
           {busy ? "Saving…" : payMode === "now" ? "Create plan & record payment" : "Create plan"}
         </button>

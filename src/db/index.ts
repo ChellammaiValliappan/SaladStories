@@ -12,7 +12,7 @@ export type DB = PostgresJsDatabase<typeof schema>;
 const globalForDb = globalThis as unknown as { __db?: DB };
 
 function createDb(): DB {
-  const url = process.env.DATABASE_URL;
+  const url = (!!process.env.TEST_DATABASE_URL ? process.env.TEST_DATABASE_URL : process.env.DATABASE_URL);
   if (url && url.startsWith("postgres")) {
     const client = postgres(url, { max: 3, idle_timeout: 20, prepare: false });
     return drizzlePg(client, { schema });

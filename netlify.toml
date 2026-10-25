@@ -5,10 +5,10 @@
   # Update the database, add starter data on the very first deploy only, then build.
   command = "npm run db:migrate && npm run db:seed && npm run build"
   publish = ".next"
-  # Save free-plan credits: skip preview/branch builds, and skip production
-  # builds when only documentation changed. Always build the first deploy and
-  # manual "Trigger deploy" runs. (Exit 0 = skip, exit 1 = build.)
-  ignore = "if [ \"$CONTEXT\" != \"production\" ]; then exit 0; fi; if [ -z \"$CACHED_COMMIT_REF\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)docs' ':(exclude)*.md'"
+  # Save free-plan credits: production builds cost 15 credits, branch builds are
+  # free. Build production and the "develop" test site; skip other previews,
+  # and skip builds when only documentation changed. (Exit 0 = skip, 1 = build.)
+  ignore = "if [ \"$CONTEXT\" != \"production\" ] && [ \"$BRANCH\" != \"develop\" ]; then exit 0; fi; if [ -z \"$CACHED_COMMIT_REF\" ] || [ \"$CACHED_COMMIT_REF\" = \"$COMMIT_REF\" ]; then exit 1; fi; git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)docs' ':(exclude)*.md'"
 
 [build.environment]
   NODE_VERSION = "22"

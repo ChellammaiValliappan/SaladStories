@@ -2,7 +2,7 @@
  * Salad Stories data model (PostgreSQL via Drizzle ORM).
  * Money is stored as integer paise (₹1 = 100 paise) to avoid rounding errors.
  */
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -215,6 +215,10 @@ export const storeSettings = pgTable("store_settings", {
   upiMerchantCode: text("upi_merchant_code").notNull().default(""),
   // Extra fields from the owner's pasted QR (e.g. Google Pay's "aid"), kept as-is.
   upiQrExtras: jsonb("upi_qr_extras").$type<Record<string, string>>().notNull().default({}),
+  // Business module
+  dailyListTime: text("daily_list_time").notNull().default("20:00"), // IST, tomorrow's orders alert
+  renewalReminderDays: integer("renewal_reminder_days").notNull().default(1),
+  customerMessaging: boolean("customer_messaging").notNull().default(true), // renewal reminders to customers
 });
 
 // ---------- Coupons ----------
@@ -457,7 +461,8 @@ export const subscriptionDays = pgTable(
     orderId: text("order_id").references(() => orders.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("subscription_days_sub_date_idx").on(t.subscriptionId, t.date)],
+  // One live delivery per plan per day; held, forfeited and moved days don't block a date.
+  (t) => [uniqueIndex("subscription_days_sub_date_idx").on(t.subscriptionId, t.date).where(sql`${t.status} = 'SCHEDULED'`)],
 );
 
 /** Business customers — website shoppers and WhatsApp/phone/cash customers alike. */
@@ -539,6 +544,71 @@ export const auditLogs = pgTable(
   },
   (t) => [index("audit_entity_idx").on(t.entity, t.entityId)],
 );
+
+/** Skip / reschedule / pause requests and the owner's decision. */
+export const scheduleRequests = pgTable(
+  "schedule_requests",
+  {
+    id: id(),
+    subscriptionId: text("subscription_id").notNull().references(() => subscriptions.id, { onDelete: "cascade" }),
+    dayId: text("day_id").references(() => subscriptionDays.id, { onDelete: "set null" }),
+    type: text("type").notNull(), // SKIP | RESCHEDULE | PAUSE | RESUME
+    originalDate: text("original_date"),
+    requestedDate: text("requested_date"),
+    reason: text("reason").notNull().default(""),
+    requestedBy: text("requested_by").notNull(), // name (customer) or team member
+    requestedByCustomer: boolean("requested_by_customer").notNull().default(false),
+    // PENDING | APPROVED | REJECTED
+    status: text("status").notNull().default("PENDING"),
+    // RESCHEDULED | CARRIED_FORWARD | FORFEITED | PAUSED | RESUMED | RESTORED
+    outcome: text("outcome"),
+    finalDate: text("final_date"),
+    decidedBy: text("decided_by"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    endDateBefore: text("end_date_before"),
+    endDateAfter: text("end_date_after"),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("schedule_requests_status_idx").on(t.status), index("schedule_requests_sub_idx").on(t.subscriptionId)],
+);
+
+/** Outbox: every alert and reminder, per channel, with status and retries. */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: id(),
+    kind: text("kind").notNull(), // DAILY_ORDERS | ATTENTION | RENEWAL_DUE | PLAN_COMPLETED | SKIP_REQUEST | …
+    dedupeKey: text("dedupe_key").notNull(),
+    channel: text("channel").notNull(), // IN_APP | PUSH | EMAIL | WHATSAPP | TELEGRAM
+    recipient: text("recipient").notNull().default("team"),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    link: text("link").notNull().default(""),
+    // PENDING | SENT | DELIVERED | FAILED | READ | SKIPPED (channel not set up)
+    status: text("status").notNull().default("PENDING"),
+    deliveryConfirmed: boolean("delivery_confirmed").notNull().default(false),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    providerId: text("provider_id"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("notifications_dedupe_idx").on(t.dedupeKey, t.channel), index("notifications_status_idx").on(t.status)],
+);
+
+/** Scheduled jobs: one row per run key, so retries never repeat work. */
+export const jobRuns = pgTable("job_runs", {
+  runKey: text("run_key").primaryKey(), // e.g. daily-orders:2026-10-23
+  job: text("job").notNull(),
+  status: text("status").notNull().default("RUNNING"), // RUNNING | DONE | FAILED
+  attempts: integer("attempts").notNull().default(1),
+  result: jsonb("result"),
+  error: text("error"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
 
 export const productRelations = relations(products, ({ many, one }) => ({
   optionGroups: many(optionGroups),

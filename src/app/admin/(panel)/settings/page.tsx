@@ -11,6 +11,8 @@ import { PasswordForm } from "@/components/PasswordForm";
 import { PAYMENT_METHODS, parseMethods } from "@/lib/payment-methods";
 import { razorpayConfigured } from "@/lib/razorpay";
 import { QrUpload } from "@/components/admin/QrUpload";
+import { saveBizSettings } from "../../biz-actions";
+import { formatTime } from "@/lib/time";
 
 export const metadata = { title: "Settings" };
 const r = (p: number | null) => (p == null ? "" : p / 100);
@@ -25,6 +27,25 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <PageHead title="Settings" />
       <Flash msg={sp.msg} err={sp.err} />
       <AlertsCard />
+      <Card title="Daily list & renewal reminders" className="mb-6">
+        <form action={saveBizSettings} className="grid gap-4 md:grid-cols-3">
+          <div>
+            <label className="label" htmlFor="dailyListTime">Send tomorrow&apos;s orders at</label>
+            <input id="dailyListTime" name="dailyListTime" type="time" required defaultValue={s.dailyListTime} className="field" />
+            <p className="mt-1 text-xs text-ink-soft">India time. Now {formatTime(s.dailyListTime)}. Sent once a day, a few minutes after this time.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="renewalReminderDays">Remind about renewals</label>
+            <select id="renewalReminderDays" name="renewalReminderDays" defaultValue={String(s.renewalReminderDays)} className="field">
+              {[1, 2, 3, 5, 7].map((n) => <option key={n} value={n}>{n} day{n === 1 ? "" : "s"} before the last delivery</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Check label="Message customers too" name="customerMessaging" defaultChecked={s.customerMessaging} hint="Renewal reminders by email. WhatsApp only once the official WhatsApp Business API is set up." />
+            <SubmitButton className="btn btn-primary">Save</SubmitButton>
+          </div>
+        </form>
+      </Card>
       <form action={saveSettings} className="space-y-6">
         <Card title="Ordering">
           <div className="grid gap-4 md:grid-cols-2">
