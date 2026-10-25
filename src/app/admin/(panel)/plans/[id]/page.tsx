@@ -6,7 +6,7 @@ import { STATUS_LABELS, addressLine } from "@/lib/notify";
 import { subscriptionState, swapOptions } from "@/lib/plans";
 import { formatDateLong, istParts } from "@/lib/time";
 import { adminSwapPlanDay, cancelPlan } from "../../../actions";
-import { pauseAction, reissueInvoiceAction, startEarlyAction } from "../../../biz-actions";
+import { pauseAction, refundAction, reissueInvoiceAction, startEarlyAction } from "../../../biz-actions";
 import { liveInvoice } from "@/lib/biz/invoices";
 import { DecisionForm } from "@/components/admin/biz/DecisionForm";
 import { carryForwardPreview, OUTCOME_LABELS, requestsForPlan } from "@/lib/biz/requests";
@@ -173,6 +173,26 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
               <details className="mt-3 rounded-2xl bg-crate p-3" open={money.due > 0}>
                 <summary className="cursor-pointer text-sm font-semibold">Record a payment</summary>
                 <div className="mt-3"><PaymentForm customerId={sub.customerId} subscriptionId={sub.id} suggested={money.due} returnTo={`/admin/plans/${sub.id}`} /></div>
+              </details>
+            )}
+            {admin && sub.customerId && money.net > 0 && (
+              <details className="mt-3 rounded-2xl bg-crate p-3">
+                <summary className="cursor-pointer text-sm font-semibold">Refund money</summary>
+                <form action={refundAction} className="mt-3 grid gap-2 text-sm">
+                  <input type="hidden" name="customerId" value={sub.customerId} />
+                  <input type="hidden" name="subscriptionId" value={sub.id} />
+                  <input type="hidden" name="returnTo" value={`/admin/plans/${sub.id}`} />
+                  <p className="text-xs text-ink-soft">Send the money back first (Google Pay, cash or bank), then record it here. A credit note is issued against the invoice. Up to {formatINR(money.net)}.</p>
+                  <label className="label" htmlFor="rf-amount">Amount (₹)</label>
+                  <input id="rf-amount" name="amount" inputMode="decimal" required className="field" />
+                  <label className="label" htmlFor="rf-method">Paid back by</label>
+                  <select id="rf-method" name="method" defaultValue="UPI" className="field">
+                    <option value="UPI">UPI / Google Pay</option><option value="CASH">Cash</option><option value="BANK">Bank transfer</option><option value="OTHER">Other</option>
+                  </select>
+                  <input name="reference" placeholder="UPI reference (optional)" className="field" />
+                  <input name="reason" required minLength={3} placeholder="Reason (e.g. two days not delivered)" className="field" />
+                  <SubmitButton className="btn btn-ghost" confirm="Record this refund? It can't be deleted, only reversed.">Record refund</SubmitButton>
+                </form>
               </details>
             )}
           </Card>
