@@ -67,7 +67,7 @@ export default async function CustomerPage({ params, searchParams }: { params: P
         <div className="rounded-2xl border border-line bg-white p-4"><p className="text-sm font-semibold text-ink-soft">Plans</p><p className="font-display text-2xl font-[800]">{subs.length}</p></div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
           <Card title="Plans">
             {summaries.map(({ sub, stats, money, next }) => (

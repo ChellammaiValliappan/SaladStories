@@ -83,7 +83,7 @@ export default async function PlanAdminDetail({ params, searchParams }: { params
         <p className="-mt-3 mb-5 text-sm font-semibold">Value of the cancelled days at bowl price: {formatINR(Number(sp.value))} (before the plan discount).</p>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Card title="Days">
           <p className="mb-3 text-sm text-ink-soft">The team can swap a bowl or skip / move any day the kitchen hasn&apos;t started, even within the customer&apos;s 24-hour cut-off. Every change asks for a reason and is kept in the history.</p>
           <ul className="divide-y divide-line">

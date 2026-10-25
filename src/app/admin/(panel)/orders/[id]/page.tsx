@@ -74,7 +74,7 @@ export default async function OrderDetail({ params, searchParams }: { params: Pr
           )}
         </section>
       )}
-      <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-6">
           <Card title="Items">
             <ul className="divide-y divide-line">

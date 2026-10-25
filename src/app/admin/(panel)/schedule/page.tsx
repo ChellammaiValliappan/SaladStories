@@ -95,7 +95,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
       )}
 
       {list.length === 0 ? <Empty>No deliveries on this day.</Empty> : (
-        <div className="grid gap-6 xl:grid-cols-[1fr_18rem]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="space-y-6">
             {slots.map((slot) => (
               <section key={slot}>

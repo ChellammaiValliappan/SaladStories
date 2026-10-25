@@ -12,15 +12,17 @@
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
     "setup": "npm run db:migrate && npm run db:seed",
     "vercel-build": "npm run db:migrate && next build",
-    "test:integration": "tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m1.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m2.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m3.ts"
+    "test:integration": "tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m1.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m2.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m3.ts && tsx --conditions=react-server --env-file-if-exists=.env tests/integration/m4.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/figtree": "^5.3.0",
+    "@netlify/blobs": "^8.1.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "jose": "^6.2.12",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.57.0",

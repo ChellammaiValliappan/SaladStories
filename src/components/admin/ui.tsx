@@ -14,7 +14,7 @@ export function PageHead({ title, children, back }: { title: string; children?: 
 
 export function Card({ title, children, className = "", actions }: { title?: string; children: React.ReactNode; className?: string; actions?: React.ReactNode }) {
   return (
-    <section className={`rounded-2xl border border-line bg-white p-5 ${className}`}>
+    <section className={`min-w-0 rounded-2xl border border-line bg-white p-5 ${className}`}>
       {(title || actions) && (
         <div className="mb-4 flex items-center justify-between gap-3">
           {title && <h2 className="text-lg font-bold">{title}</h2>}

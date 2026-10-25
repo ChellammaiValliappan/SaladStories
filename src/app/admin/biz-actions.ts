@@ -329,3 +329,66 @@ export async function saveBillingSettings(form: FormData) {
   await audit(db, "settings", "1", "billing settings changed", { after: patch, actor: actorOf(me) });
   back("/admin/settings", "msg=saved");
 }
+
+// ---------- Expenses (M4) ----------
+
+function expenseFromForm(form: FormData) {
+  return {
+    date: str(form, "date"),
+    categoryId: str(form, "categoryId"),
+    description: str(form, "description"),
+    vendor: str(form, "vendor"),
+    amount: rupeesToPaise(str(form, "amount") || "0"),
+    method: (str(form, "method") || "UPI") as never,
+    reference: str(form, "reference"),
+    notes: str(form, "notes"),
+  };
+}
+
+export async function saveExpenseAction(form: FormData) {
+  const me = await requireStaff();
+  const id = str(form, "id");
+  if (id && me.role !== "ADMIN") back(`/admin/expenses/${id}`, "err=Only an admin can edit expenses.");
+  const returnTo = id ? `/admin/expenses/${id}` : "/admin/expenses";
+  const { createExpense, updateExpense } = await import("@/lib/biz/expenses");
+  const { saveFile } = await import("@/lib/files");
+  let savedId = id;
+  try {
+    const file = form.get("bill");
+    let attachment = null;
+    if (file instanceof File && file.size > 0) attachment = { key: await saveFile(file, "bills"), name: file.name.slice(0, 120), type: file.type };
+    const row = id ? await updateExpense(id, expenseFromForm(form), attachment, actorOf(me)) : await createExpense(expenseFromForm(form), attachment, actorOf(me));
+    savedId = row.id;
+  } catch (e) {
+    if (e instanceof Error && /Upload a photo|over 4 MB/.test(e.message)) back(returnTo, `err=${encodeURIComponent(e.message)}`);
+    fail(returnTo, e);
+  }
+  if (!id && str(form, "next") === "another") back("/admin/expenses?add=1", `msg=${encodeURIComponent("Expense saved. Add the next one.")}`);
+  back(id ? `/admin/expenses/${savedId}` : "/admin/expenses", `msg=${encodeURIComponent("Expense saved.")}`);
+}
+
+export async function removeExpenseAction(form: FormData) {
+  const me = await requireAdmin();
+  const id = str(form, "id");
+  const { removeExpense, restoreExpense } = await import("@/lib/biz/expenses");
+  try {
+    if (str(form, "action") === "restore") await restoreExpense(id, actorOf(me));
+    else await removeExpense(id, str(form, "reason"), actorOf(me));
+  } catch (e) {
+    fail(`/admin/expenses/${id}`, e);
+  }
+  back(`/admin/expenses/${id}`, `msg=${encodeURIComponent(str(form, "action") === "restore" ? "Expense restored." : "Expense removed from totals. It stays in the history.")}`);
+}
+
+export async function categoryAction(form: FormData) {
+  const me = await requireAdmin();
+  const { addCategory, setCategoryActive } = await import("@/lib/biz/expenses");
+  try {
+    if (str(form, "action") === "add") await addCategory(str(form, "name"), actorOf(me));
+    else await setCategoryActive(str(form, "id"), str(form, "action") === "show", actorOf(me));
+  } catch (e) {
+    fail("/admin/expenses?cats=1", e);
+  }
+  back("/admin/expenses?cats=1", "msg=saved");
+}
+

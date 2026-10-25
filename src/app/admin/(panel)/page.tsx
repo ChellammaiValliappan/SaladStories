@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, count, desc, eq, gte, inArray, sql, sum } from "drizzle-orm";
 import { db, deliverySlots, orderEvents, orders, payments, subscriptions } from "@/db";
-import { CalendarPlus, CalendarRange, IndianRupee, Inbox, Send, UserPlus } from "lucide-react";
+import { CalendarPlus, CalendarRange, IndianRupee, Inbox, Receipt, UserPlus } from "lucide-react";
 import { attentionItems, deliveryList } from "@/lib/biz/daily";
 import { PushToggle } from "@/components/admin/PushToggle";
 import { pushConfigured, pushPublicKey } from "@/lib/push";
@@ -81,7 +81,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     { href: "/admin/payments", label: "Record payment", icon: IndianRupee, show: admin },
     { href: `/admin/schedule?date=${tomorrow}`, label: "Tomorrow's list", icon: CalendarRange, show: true },
     { href: "/admin/requests", label: "Skip requests", icon: Inbox, show: true },
-    { href: "/admin/notifications", label: "Alerts", icon: Send, show: true },
+    { href: "/admin/expenses?add=1", label: "Add expense", icon: Receipt, show: true },
   ].filter((a) => a.show);
 
   return (
@@ -145,7 +145,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         })}
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_20rem]">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <Card title="Latest orders" actions={<Link href="/admin/orders" className="text-sm font-semibold text-basil">All orders</Link>}>
           {recent.length === 0 ? (
             <p className="text-ink-soft">No orders yet. They'll appear here as soon as customers check out.</p>

@@ -54,7 +54,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         Every alert lands here first, then goes out on phone, email, Telegram and WhatsApp (whichever are set up). Tomorrow&apos;s orders list goes out daily at {formatTime(s.dailyListTime)}.
       </p>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section>
           {items.length === 0 ? <Empty>No alerts yet.</Empty> : (
             <ul className="space-y-3">
@@ -69,7 +69,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                     </div>
                     <details className="mt-1" open={isNew && n.body.length < 600}>
                       <summary className="cursor-pointer text-sm text-ink-soft">{n.body.split("\n").find((l) => l.trim() && !l.startsWith("Salad Stories"))?.slice(0, 110) ?? "Details"}</summary>
-                      <pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{n.body}</pre>
+                      <pre className="mt-2 whitespace-pre-wrap font-sans text-sm [overflow-wrap:anywhere]">{n.body}</pre>
                     </details>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                       {n.link && <Link href={n.link} className="btn btn-primary min-h-9 px-3 text-sm">Open</Link>}

@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // PGlite (local dev database) ships WASM/data files that must load from node_modules.
-  serverExternalPackages: ["@electric-sql/pglite"],
+  serverExternalPackages: ["@electric-sql/pglite", "exceljs"],
+  // Bill photos are shrunk in the browser first; this leaves room for a PDF bill.
+  experimental: { serverActions: { bodySizeLimit: "5mb" } },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },

@@ -715,3 +715,53 @@ export const invoices = pgTable(
     uniqueIndex("invoices_order_live_idx").on(t.orderId).where(sql`${t.kind} = 'INVOICE' and ${t.status} <> 'VOID' and ${t.orderId} is not null and ${t.subscriptionId} is null`),
   ],
 );
+
+// ---------- Expenses (M4) ----------
+
+export const expenseCategories = pgTable("expense_categories", {
+  id: id(),
+  name: text("name").notNull().unique(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+/** Money going out. Never deleted: a mistake is marked removed with a reason. */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: id(),
+    code: text("code").notNull().unique(), // EXP-0001
+    date: text("date").notNull(), // YYYY-MM-DD (IST)
+    categoryId: text("category_id").references(() => expenseCategories.id, { onDelete: "set null" }),
+    description: text("description").notNull(),
+    vendor: text("vendor").notNull().default(""),
+    amount: integer("amount").notNull(), // paise
+    method: text("method").notNull().default("UPI"), // UPI | CASH | BANK | CARD | OTHER
+    reference: text("reference").notNull().default(""),
+    attachmentKey: text("attachment_key"), // bill photo / PDF in file storage
+    attachmentName: text("attachment_name"),
+    attachmentType: text("attachment_type"),
+    notes: text("notes").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: text("deleted_by"),
+    deleteReason: text("delete_reason"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("expenses_date_idx").on(t.date), index("expenses_category_idx").on(t.categoryId)],
+);
+
+/** Uploaded files kept in the database when no file store is available (local dev, tests). */
+export const storedFiles = pgTable("stored_files", {
+  key: text("key").primaryKey(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  dataBase64: text("data_base64").notNull(),
+  createdAt: createdAt(),
+});
+
+export const expenseRelations = relations(expenses, ({ one }) => ({
+  category: one(expenseCategories, { fields: [expenses.categoryId], references: [expenseCategories.id] }),
+}));
