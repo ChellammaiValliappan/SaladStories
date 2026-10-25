@@ -16,6 +16,8 @@ const nextWeekday = (from: string) => { let d = from; while ([0, 6].includes(day
 (async () => {
   const [admin] = await db.select().from(users).where(eq(users.role, "ADMIN"));
   const actor = { id: admin.id, name: "Owner" };
+  // Test runs pile up orders in the local database; don't let slot capacity change the dates.
+  await db.update(deliverySlots).set({ maxOrders: 100000 });
   const [slot] = await db.select().from(deliverySlots);
   const today = istParts().dateStr;
   const start = nextWeekday(addDays(today, 3)); // far enough that customer skips are allowed

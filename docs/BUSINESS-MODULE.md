@@ -167,4 +167,22 @@ stateDiagram-v2
 | **M4** | Expenses and finance | Expenses with categories and bill photos; finance dashboard (sales vs collections, pending, advances, refunds, expenses, cash flow, operating profit estimate, subscriber metrics); CSV/Excel exports |
 | **M5** | Hardening | Automated acceptance tests (the 12 scenarios in the brief), backups for new tables, mobile QA, setup, deploy and operating guide |
 
-Each milestone is tested, deployed to the live site and recorded here before the next one starts.
+Each milestone is tested on the test site (`develop`) and recorded here; production gets one deploy per release.
+
+## 6. Status (25 Oct 2026)
+
+| # | Status | Tests |
+|---|---|---|
+| M1 | Done, on the test site | `tests/integration/m1.ts` (27 checks) |
+| M2 | Done, on the test site | `tests/integration/m2.ts` (30) |
+| M3 | Done, on the test site | `tests/integration/m3.ts` (27) |
+| M4 | Done, on the test site | `tests/integration/m4.ts` (28) |
+| M5 | Done, on the test site | `tests/integration/acceptance.ts` (39, the 12 scenarios), `tests/integration/roles.ts` (26 HTTP role checks), 33 unit tests |
+
+Production still runs the version from 19 Oct; M1–M5 go live in one deploy when Netlify credits reset (or on upgrade). Setup, migrations, tests and releasing: [OPERATIONS.md](OPERATIONS.md).
+
+Changes from the original design, decided while building:
+- Website plans and orders get their invoice when payment is **confirmed received** (an unchecked UPI claim doesn't issue one); admin plans get one at creation so it can be sent to ask for payment.
+- Bill photos are stored in Netlify Blobs on Netlify and in the database locally.
+- Duplicate same-day deliveries are blocked per customer in code (with an owner override) and per plan by a partial unique index on scheduled days.
+

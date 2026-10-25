@@ -103,10 +103,19 @@ export async function sendOrdersBackup(): Promise<SendResult & { count: number }
   const filename = `salad-stories-all-orders-${today}.csv`;
   const caption = `🗂 Weekly backup: all ${count} orders (${paid.length} paid, ${formatINR(paid.reduce((s, o) => s + o.total, 0))}). Open in Excel or Google Sheets.`;
   const to = await ownerContacts();
+  // Everything else (customers, plans, payments, invoices, expenses) as one Excel workbook.
+  const { exportSheets, toXlsx } = await import("./biz/exports");
+  const all = "2000-01-01";
+  const sheets = (await Promise.all((["customers", "plans", "payments", "invoices", "expenses"] as const).map((t) => exportSheets(t, all, today)))).flat();
+  const book = await toXlsx(sheets);
+  const bookName = `salad-stories-business-backup-${today}.xlsx`;
+  const xlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const full = `${caption}\nAlso attached: customers, meal plans, payments, invoices and expenses (Excel).`;
   const [telegram, email] = await Promise.all([
-    sendTelegramDocument(to.chatId, filename, csv, caption),
-    sendEmail(to.email, `Salad Stories orders backup — ${formatDateLong(today)}`, caption, pre(caption), [
+    sendTelegramDocument(to.chatId, filename, csv, caption).then((ok) => (ok ? sendTelegramDocument(to.chatId, bookName, book, "Business backup: customers, plans, payments, invoices, expenses", xlsxType) : ok)),
+    sendEmail(to.email, `Salad Stories weekly backup — ${formatDateLong(today)}`, full, pre(full), [
       { filename, content: csv, contentType: "text/csv; charset=utf-8" },
+      { filename: bookName, content: book, contentType: xlsxType },
     ]),
   ]);
   return { telegram, email, count };

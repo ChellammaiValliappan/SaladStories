@@ -44,6 +44,8 @@ Follow **[docs/SETUP.md](docs/SETUP.md)** — free-plan setup for Neon, Netlify,
 
 How customers and the owner move through the site, including what happens when something goes wrong, is in **[docs/FLOWS.md](docs/FLOWS.md)**.
 
+The **Subscription, Order & Billing module** (customers, meal plans, payments ledger, 8 pm tomorrow list, skip requests, invoices, expenses, finance) is designed in **[docs/BUSINESS-MODULE.md](docs/BUSINESS-MODULE.md)**. Running it, tests, migrations and releases: **[docs/OPERATIONS.md](docs/OPERATIONS.md)**.
+
 ## Before launch — the owner must check
 
 - [ ] **Prices** — the seeded prices (₹149–₹249) are placeholders. Set real prices in Admin → Menu.

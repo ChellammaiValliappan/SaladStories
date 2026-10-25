@@ -19,6 +19,8 @@ const nextWeekday = (from: string) => { let d = from; while ([0, 6].includes(day
   check("financial year", financialYear("2026-10-25") === "26-27" && financialYear("2027-03-31") === "26-27" && financialYear("2027-04-01") === "27-28");
   const [admin] = await db.select().from(users).where(eq(users.role, "ADMIN"));
   const actor = { id: admin.id, name: "Owner" };
+  // Test runs pile up orders in the local database; don't let slot capacity change the dates.
+  await db.update(deliverySlots).set({ maxOrders: 100000 });
   const [slot] = await db.select().from(deliverySlots);
   await db.update(storeSettings).set({ gstRegistered: false, gstin: "", invoicePrefix: "SS" }).where(eq(storeSettings.id, 1));
   const fy = financialYear(istParts().dateStr);

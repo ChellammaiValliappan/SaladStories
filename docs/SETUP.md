@@ -109,13 +109,19 @@ Customers get a confirmation and status updates; you get a copy of every paid or
 3. Open your new bot in Telegram and tap **Start**.
 4. **Admin → Settings → Order alerts & reports → Connect Telegram.** The bot says hello. Every paid order and every payment to check now pings your phone.
 
-### Nightly summary and weekly backup (automatic, free)
+### Automatic alerts, summaries and backups (free)
 
-Two Netlify scheduled functions (`netlify/functions/`) send to your Telegram and email:
-- **Every night at 10 pm:** today's paid orders and sales, unpaid orders, payments still to check, and tomorrow's dishes to prepare.
-- **Every Monday at 8 am:** a CSV of **every order ever placed** (payments, UTRs, customers) — your off-site backup and payment report.
+One Netlify scheduled function (`netlify/functions/tick.mts`) wakes up **every 15 minutes** and calls the site. Each job has a run key, so it runs **once per day** however many times it's woken, and a missed run is caught up on the next wake-up.
 
-Buttons on the same card send either one immediately, and **Download all orders (CSV)** works any time. The jobs use `AUTH_SECRET` to call the site (or `CRON_SECRET` if you set one).
+| When (India time) | What |
+|---|---|
+| **8 pm** (change it in Admin → Settings → Daily list) | **Tomorrow's orders** list (customer, plan, Day N of M, remaining, payment, bowl, address) and a separate **Needs attention** alert (unpaid plans, last deliveries, skip requests, payments to check) |
+| 8 pm | **Renewal reminders** for plans ending soon (to you; and to the customer by email if *Message customers too* is on) |
+| Every hour | Plans whose paid deliveries are all done are marked **Completed** and you're told payment for the next plan is needed |
+| 10 pm | Today's sales summary; also issues any invoice that's missing and starts any fully paid plan that's still waiting |
+| Monday 8 am | **Backup**: every order (CSV) plus customers, meal plans, payments, invoices and expenses (Excel), to your Telegram and email |
+
+Everything also appears in **Admin → Alerts** (the bell), with which channels it went out on and a Retry button. **Send tomorrow's list now** there sends it early. The scheduler signs its calls with `CRON_SECRET` (or `AUTH_SECRET` if that isn't set).
 
 ### Notifications from your own site (free, private — recommended)
 
@@ -171,6 +177,17 @@ Buy a domain → Netlify *Domain management → Add a domain* → follow the DNS
 | See what to cook for each slot and print it | Admin → Kitchen sheet (staff can use it too) |
 | Start all new orders in a slot at once | Admin → Kitchen sheet → Start preparing all |
 | Download orders for accounts (Excel) | Admin → Reports → Download orders |
+| Add a WhatsApp / phone / cash customer | Dashboard → Add customer → New plan |
+| Record a payment (UPI, cash, bank) | Customer or plan page → Record a payment |
+| Check a payment a customer reported | Admin → Payments → To verify → Money received |
+| Decide a skip request | Admin → Skip requests (or the plan page) |
+| Pause / resume / renew a plan | Admin → Meal plans → open the plan |
+| See tomorrow's deliveries | Admin → Schedule |
+| Send or download an invoice / receipt | Admin → Invoices → open it (PDF, WhatsApp, email) |
+| Turn on GST invoices | Admin → Settings → Invoices & GST |
+| Add an expense with the bill photo | Dashboard → Add expense |
+| See sales, collections, profit; download for your accountant | Admin → Finance |
+| Change the 8 pm alert time | Admin → Settings → Daily list & renewal reminders |
 
 The dashboard shows a **Before you launch** checklist that ticks itself off as you finish these steps.
 
@@ -193,5 +210,24 @@ The dashboard shows a **Before you launch** checklist that ticks itself off as y
 | `TELEGRAM_BOT_TOKEN` | Optional | Free phone alerts; chat ID is set in Admin → Settings |
 | `WHATSAPP_*`, `OWNER_WHATSAPP_NUMBER` | Optional | Paid WhatsApp alerts |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET` | Optional | Photo uploads |
+| `CRON_SECRET` | Optional | Signs the scheduler's calls (falls back to `AUTH_SECRET`) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Optional | Phone notifications from the admin (free) |
+| `CALLMEBOT_APIKEY`, `OWNER_WHATSAPP_NUMBER` | Optional | Free WhatsApp alerts to your own number |
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Optional, paid | Official WhatsApp Business API — needed to message **customers** |
+| `TEST_DATABASE_URL`, `TEST_AUTH_SECRET` | Test site only | Set for the **branch-deploy** context only. Their presence turns a deploy into the test site: separate database, no outside messages, purple banner. Never set them for production. |
 
 Never commit these values to GitHub — enter them only in Netlify.
+
+## Test site and releasing changes
+
+- **Test site:** `https://develop--saladstories.netlify.app`, built from the `develop` branch (Netlify → Branches and deploy contexts → Branch deploys: `develop`). It uses its own copy of the database (a Neon branch), sends no emails/WhatsApp/Telegram/phone alerts, doesn't run the scheduler, and shows a purple TEST SITE bar. **Branch deploys use no Netlify credits.**
+- **Releasing:** when you've tested something on the test site, merge `develop` into `main`. That one production deploy (15 credits) runs any database updates and publishes the site. Settings you changed on the test site (plan prices, alert time…) live in the test database — set them again on the live admin.
+- **Refreshing the test data:** in Neon, reset the `develop` branch from `main` ("Reset from parent") to get a fresh copy of live data.
+
+## Backups and restore
+
+- **Weekly:** the Monday backup emails/Telegrams every order (CSV) and customers, plans, payments, invoices and expenses (Excel). Keep those emails.
+- **Any time:** Admin → Finance → Download gives Excel/CSV of each part.
+- **Database restore:** Neon keeps a short history. Neon → your project → Branches → **Restore** to a time before a mistake, or create a branch from a past time to look at old data without touching the live site. Before every release a backup branch is made (e.g. `backup-before-m1m2-2026-10-25`).
+- Nothing in the business records is ever deleted: payments are reversed, invoices cancelled, expenses removed — each with a reason in the history.
+

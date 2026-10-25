@@ -15,6 +15,8 @@ const utr = (n: number) => String(T + n).slice(-12).padStart(12, "4");
   await db.update(storeSettings).set({ upiId: "test@okaxis", paymentMode: "UPI" }).where(eq(storeSettings.id, 1));
   const [admin] = await db.select().from(users).where(eq(users.role, "ADMIN"));
   const actor = { id: admin.id, name: "Owner" };
+  // Test runs pile up orders in the local database; don't let slot capacity change the dates.
+  await db.update(deliverySlots).set({ maxOrders: 100000 });
   const [slot] = await db.select().from(deliverySlots);
   await db.update(products).set({ planTier: "PREMIUM" }).where(eq(products.slug, "high-protein-paneer-bowl"));
   const prods = await db.select().from(products);

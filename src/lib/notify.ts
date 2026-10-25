@@ -223,7 +223,7 @@ export async function sendTelegram(chatId: string, text: string) {
 }
 
 /** Sends a file (e.g. the orders backup CSV) to the owner's Telegram. */
-export async function sendTelegramDocument(chatId: string, filename: string, content: string, caption: string) {
+export async function sendTelegramDocument(chatId: string, filename: string, content: string | Buffer, caption: string, type = "text/csv") {
   if (isTestSite()) { console.info("[test site] outside message not sent"); return false; }
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || !chatId) return false;
@@ -231,7 +231,7 @@ export async function sendTelegramDocument(chatId: string, filename: string, con
     const form = new FormData();
     form.append("chat_id", chatId);
     form.append("caption", caption.slice(0, 1000));
-    form.append("document", new Blob([content], { type: "text/csv" }), filename);
+    form.append("document", new Blob([typeof content === "string" ? content : new Uint8Array(content)], { type }), filename);
     const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: "POST", body: form });
     if (!res.ok) console.error("[telegram file failed]", res.status, await res.text());
     return res.ok;
